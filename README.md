@@ -31,9 +31,17 @@ The project is built step-by-step as an educational and engineering exercise.
 - [ ] Tests with Foundry
 - [ ] Fuzzing and invariant testing
 
-## Documentation
+# Documentation
 
-Detailed implementation notes and explanations are available in the `docs/` folder.
+A dedicated `docs/` folder is used to document the protocol implementation process step-by-step.
+
+```text
+docs/
+├── 00-introduction.md
+├── 01-project-setup.md
+├── 02-uniswap-v1-architecture.md
+├── ...
+```
 
 ## Goal
 
