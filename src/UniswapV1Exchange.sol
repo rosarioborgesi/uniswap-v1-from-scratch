@@ -45,12 +45,8 @@ contract UniswapV1Exchange {
     }
 
     //////////////////////////////////////////////////////
-    //      External & Public View & Pure Functions     //
+    //     Private & Internal View & Pure Functions     //
     //////////////////////////////////////////////////////
-    function tokenAddress() external view returns (address) {
-        return address(I_TOKEN);
-    }
-
     /**
      * @notice Calculates output amount for an exact input swap.
      * @param _inputAmount Amount of input asset sold.
@@ -68,5 +64,12 @@ contract UniswapV1Exchange {
         uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
 
         return numerator / denominator;
+    }
+
+    //////////////////////////////////////////////////////
+    //      External & Public View & Pure Functions     //
+    //////////////////////////////////////////////////////
+    function tokenAddress() external view returns (address) {
+        return address(I_TOKEN);
     }
 }
