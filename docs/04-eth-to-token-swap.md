@@ -53,6 +53,8 @@ ETH <-> WETH
 
 # 2. _getInputPrice()
 
+The `_getInputPrice()` function calculates how much output asset the user receives for a given input amount.
+
 ```solidity
 function _getInputPrice(
     uint256 _inputAmount,
@@ -61,10 +63,6 @@ function _getInputPrice(
 ) private pure returns (uint256)
 ```
 
-This is the core AMM pricing function.
-
-It calculates how much output asset the user receives for a given input amount.
-
 The formula includes the Uniswap V1 fee:
 
 ```text
@@ -72,7 +70,110 @@ The formula includes the Uniswap V1 fee:
 997 / 1000 input used for pricing
 ```
 
-This function is private because it is only internal pricing logic.
+## Deriving `_getInputPrice`
+
+The swap is based on the constant product formula:
+
+$$
+x \cdot y = k
+$$
+
+where:
+- `x` = input reserve
+- `y` = output reserve
+- `k` = constant product
+
+In our Solidity function:
+
+```solidity
+function _getInputPrice(
+    uint256 _inputAmount,
+    uint256 _inputReserve,
+    uint256 _outputReserve
+) private pure returns (uint256)
+```
+
+the variables correspond to:
+
+- `_inputAmount` = `Δx`
+- `_inputReserve` = `x`
+- `_outputReserve` = `y`
+- return value = `Δy`
+
+When a user swaps an input amount `Δx`, the input reserve increases and the output reserve decreases:
+
+$$
+(x + \Delta x)(y - \Delta y) = k
+$$
+
+Since:
+
+$$
+k = x \cdot y
+$$
+
+we can write:
+
+$$
+(x + \Delta x)(y - \Delta y) = x \cdot y
+$$
+
+Solving for `Δy`:
+
+$$
+\Delta y = y - \frac{x \cdot y}{x + \Delta x}
+$$
+
+This simplifies to:
+
+$$
+\Delta y = \frac{y \cdot \Delta x}{x + \Delta x}
+$$
+
+So the output amount is:
+
+```text
+output = outputReserve * inputAmount / (inputReserve + inputAmount)
+```
+
+---
+
+## Adding the Fee
+
+Uniswap V1 charges a 0.3% fee.
+
+So only 99.7% of the input amount is used for pricing:
+
+$$
+\Delta x_{fee} = \Delta x \cdot \frac{997}{1000}
+$$
+
+To avoid decimals in Solidity, we keep the calculation scaled by `1000`.
+
+If we replace $\Delta x$ with $\Delta x_{fee}$ inside the formula, we get:
+
+$$
+\Delta y =
+\frac{
+y \cdot (\Delta x \cdot 997)
+}{
+(x \cdot 1000) + (\Delta x \cdot 997)
+}
+$$
+
+In Solidity:
+
+```solidity
+uint256 inputAmountWithFee = _inputAmount * 997;
+uint256 numerator = inputAmountWithFee * _outputReserve;
+uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
+
+return numerator / denominator;
+```
+
+This returns the amount of output tokens the user receives for a given input amount.
+
+Integer division rounds down, which is expected in Solidity.
 
 ---
 
