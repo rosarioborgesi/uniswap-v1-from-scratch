@@ -17,7 +17,7 @@ contract UniswapV1ExchangeTest is Test {
         exchange = new UniswapV1Exchange(address(token));
     }
 
-    ////////////////// 
+    //////////////////
     // Constructor  //
     //////////////////
     function testRevertsIfTokenAddressIsZero() external {

@@ -21,6 +21,8 @@ contract UniswapV1ExchangeFuzzTest is Test {
     // getInputPrice Tests  //
     //////////////////////////
     function testGetInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve) external view {
+        // Bound values to uint112 because Uniswap reserves historically fit into uint112.
+        // This also avoids unrealistic overflow scenarios during fuzzing.
         _inputAmount = bound(_inputAmount, 1, type(uint112).max);
         _inputReserve = bound(_inputReserve, 1, type(uint112).max);
         _outputReserve = bound(_outputReserve, 1, type(uint112).max);
