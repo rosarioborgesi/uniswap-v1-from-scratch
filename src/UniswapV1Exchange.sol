@@ -30,18 +30,18 @@ contract UniswapV1Exchange {
     //            Errors          //
     ////////////////////////////////
     error UniswapV1Exchange__ZeroAddress();
-    error UniswapV1Exchage__InsufficientReserves();
+    error UniswapV1Exchange__InsufficientReserves();
 
     ////////////////////////////////
     //      State Variables       //
     ////////////////////////////////
-    IERC20 private immutable I_TOKEN;
+    IERC20 private immutable i_token;
 
     constructor(address _tokenAddress) {
         if (_tokenAddress == address(0)) {
             revert UniswapV1Exchange__ZeroAddress();
         }
-        I_TOKEN = IERC20(_tokenAddress);
+        i_token = IERC20(_tokenAddress);
     }
 
     //////////////////////////////////////////////////////
@@ -54,9 +54,13 @@ contract UniswapV1Exchange {
      * @param _outputReserve Reserve of output asset.
      * @return Amount of output asset bought.
      */
-    function _getInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve) private pure returns (uint256) {
-        if(_inputReserve == 0 || _outputReserve == 0) {
-            revert UniswapV1Exchage__InsufficientReserves();
+    function _getInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve)
+        private
+        pure
+        returns (uint256)
+    {
+        if (_inputReserve == 0 || _outputReserve == 0) {
+            revert UniswapV1Exchange__InsufficientReserves();
         }
 
         uint256 inputAmountWithFee = _inputAmount * 997;
@@ -70,6 +74,14 @@ contract UniswapV1Exchange {
     //      External & Public View & Pure Functions     //
     //////////////////////////////////////////////////////
     function tokenAddress() external view returns (address) {
-        return address(I_TOKEN);
+        return address(i_token);
+    }
+
+    function getInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve)
+        external
+        pure
+        returns (uint256)
+    {
+        return _getInputPrice(_inputAmount, _inputReserve, _outputReserve);
     }
 }
