@@ -28,6 +28,11 @@ contract UniswapV1ExchangeTest is Test {
     //////////////////////////
     // getInputPrice Tests  //
     //////////////////////////
+    function testGetInputPriceRevertsWithZeroInputAmount() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientInputAmount.selector);
+        exchange.getInputPrice(0, 10 ether, 1_000 ether);
+    }
+
     function testGetInputPriceRevertsWithZeroReserves() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientReserves.selector);
         exchange.getInputPrice(1 ether, 0, 1_000 ether);

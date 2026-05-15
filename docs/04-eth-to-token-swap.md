@@ -177,6 +177,154 @@ Integer division rounds down, which is expected in Solidity.
 
 ---
 
+## Testing `_getInputPrice`
+
+The pricing formula is the mathematical core of the AMM.
+
+For this reason we test it separately before implementing the full swap flow.
+
+The tests cover:
+- correctness of the pricing formula
+- invalid inputs
+- invalid reserve states
+- fuzz testing
+
+---
+
+### Revert Tests
+
+The function should revert if:
+- the input amount is zero
+- one of the reserves is zero
+
+Example:
+
+```solidity
+if (_inputAmount == 0) {
+    revert UniswapV1Exchange__InsufficientInputAmount();
+}
+
+if (_inputReserve == 0 || _outputReserve == 0) {
+    revert UniswapV1Exchange__InsufficientReserves();
+}
+```
+
+A reserve cannot be zero because the AMM invariant:
+
+$$
+x \cdot y = k
+$$
+
+would break.
+
+If one reserve becomes zero:
+- the pool cannot quote prices correctly
+- the pool cannot output assets anymore
+- the constant product model becomes invalid
+
+---
+
+### Fuzz Testing
+
+We also add a fuzz test for the pricing formula.
+
+```solidity
+function testGetInputPriceAlwaysMatchesAmmFormula(
+    uint256 _inputAmount,
+    uint256 _inputReserve,
+    uint256 _outputReserve
+)
+```
+
+Instead of testing only one example, fuzz testing automatically checks many combinations of:
+- input amounts
+- input reserves
+- output reserves
+
+The test verifies that the Solidity implementation always matches the mathematical formula.
+
+---
+
+### Why We Bound The Inputs
+
+In the fuzz test we use:
+
+```solidity
+_inputAmount = bound(_inputAmount, 1, type(uint112).max);
+_inputReserve = bound(_inputReserve, 1, type(uint112).max);
+_outputReserve = bound(_outputReserve, 1, type(uint112).max);
+```
+
+The goal is:
+- avoid meaningless overflow scenarios
+- keep the test realistic
+- simulate realistic AMM reserve sizes
+
+The contract itself uses `uint256`.
+
+The `uint112` bound is only a fuzz testing constraint.
+
+---
+
+### Why `uint112`?
+
+In Uniswap V1 reserves are not stored in dedicated state variables.
+
+The protocol directly uses:
+- `address(this).balance`
+- `token.balanceOf(address(this))`
+
+However, in Uniswap V2 reserves are stored as:
+
+```solidity
+uint112 reserve0;
+uint112 reserve1;
+```
+
+This was done for storage packing and gas optimization.
+
+A small grammar improvement:
+
+Using `uint112` in the fuzz tests mirrors realistic reserve sizes used by real AMMs and avoids overflow errors.
+
+---
+
+### Uniswap V2 Equivalent
+
+The equivalent pricing function in Uniswap V2 is:
+
+```solidity
+getAmountOut(
+    uint amountIn,
+    uint reserveIn,
+    uint reserveOut
+)
+```
+
+The implementation is almost identical, the main difference is architectural:
+- Uniswap V1 places the pricing logic inside the exchange contract
+- Uniswap V2 places the pricing logic inside [`UniswapV2Library`]((https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol))
+
+---
+
+### How Uniswap V1 and V2 Test the Formula
+
+Uniswap V1 and V2 mainly test swaps through integration tests:
+- adding liquidity
+- performing swaps
+- checking balances
+- checking events
+
+The official tests mostly use fixed examples instead of fuzz testing.
+
+In this project, we also test the pricing formula directly using fuzz tests.
+
+Our fuzz test validates the pricing formula against many randomized reserve and input combinations automatically.
+
+This gives higher confidence in the correctness of the AMM math and helps detect edge cases.
+
+--- 
+
 # 3. getEthToTokenInputPrice()
 
 ```solidity

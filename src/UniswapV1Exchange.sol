@@ -30,6 +30,7 @@ contract UniswapV1Exchange {
     //            Errors          //
     ////////////////////////////////
     error UniswapV1Exchange__ZeroAddress();
+    error UniswapV1Exchange__InsufficientInputAmount();
     error UniswapV1Exchange__InsufficientReserves();
 
     ////////////////////////////////
@@ -59,6 +60,9 @@ contract UniswapV1Exchange {
         pure
         returns (uint256)
     {
+        if (_inputAmount == 0) {
+            revert UniswapV1Exchange__InsufficientInputAmount();
+        }
         if (_inputReserve == 0 || _outputReserve == 0) {
             revert UniswapV1Exchange__InsufficientReserves();
         }
