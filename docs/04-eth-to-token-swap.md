@@ -302,7 +302,7 @@ getAmountOut(
 ```
 
 The implementation is almost identical, the main difference is architectural:
-- Uniswap V1 places the pricing logic inside the exchange contract
+- Uniswap V1 places the pricing logic inside the exchange contract [uniswap_exchange.py](https://github.com/Uniswap/v1-contracts/blob/master/contracts/uniswap_exchange.vy)
 - Uniswap V2 places the pricing logic inside [`UniswapV2Library`]((https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol))
 
 ---
@@ -337,11 +337,10 @@ It tells the user how many tokens they would receive for a given ETH input.
 
 It does not perform the swap.
 
-It only reads:
-- ETH reserve
-- token reserve
-
-Then it calls `_getInputPrice()`.
+The function:
+- reads the ETH reserve from `address(this).balance`
+- reads the token reserve from `token.balanceOf(address(this))`
+- calls `_getInputPrice()`
 
 ---
 
@@ -357,34 +356,70 @@ function _ethToTokenInput(
 ) private returns (uint256 tokensBought)
 ```
 
-This is the internal swap function.
+This is the internal swap execution function.
 
-It performs the real swap logic:
+It performs the actual ETH → token swap.
 
-```text
-1. check deadline
-2. check input values
-3. read token reserve
-4. calculate ETH reserve before the swap
-5. calculate tokens bought
-6. check slippage
-7. transfer tokens to recipient
-8. emit event
-```
 
-The ETH reserve must be calculated as:
+---
+
+## Why We Use `address(this).balance - _ethSold`
+
+Inside the function, `msg.value` has already been added to the contract balance.
+
+So:
 
 ```solidity
-address(this).balance - _ethSold
+address(this).balance
 ```
 
-because `msg.value` is already included in the contract balance when the function runs.
+already includes the ETH sent by the user.
+
+To calculate the reserve before the swap, we subtract the ETH input:
+
+```solidity
+uint256 ethReserveBeforeSwap = address(this).balance - _ethSold;
+```
+
+This mirrors the original Uniswap V1 implementation.
+
+---
+
+## Slippage Protection
+
+The user provides:
+
+```solidity
+_minTokens
+```
+
+which represents the minimum acceptable output amount.
+
+If the calculated output is lower:
+
+```solidity
+tokensBought < _minTokens
+```
+
+the transaction reverts.
+
+This protects users from excessive price movement or front-running.
+
+---
+
+## Buyer vs Recipient
 
 The function receives both:
 - `_buyer`
 - `_recipient`
 
-because the buyer pays ETH, but the tokens can be sent to another address.
+because the address paying ETH is not necessarily the address receiving the tokens.
+
+In the basic swap flow:
+- buyer = msg.sender
+- recipient = msg.sender
+
+But more advanced flows may separate them.
 
 ---
 

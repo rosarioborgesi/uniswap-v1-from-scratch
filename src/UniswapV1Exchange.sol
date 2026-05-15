@@ -30,14 +30,28 @@ contract UniswapV1Exchange {
     //            Errors          //
     ////////////////////////////////
     error UniswapV1Exchange__ZeroAddress();
-    error UniswapV1Exchange__InsufficientInputAmount();
+    error UniswapV1Exchange__InputAmountIsZero();
     error UniswapV1Exchange__InsufficientReserves();
+    error UniswapV1Exchange__EthSoldIsZero();
+    error UniswapV1Exchange__DeadlineExpired();
+    error UniswapV1Exchange__MinTokensIsZero();
+    error UniswapV1Exchange__InsufficientOutput();
+    error UniswapV1Exchange__TransferFailed(address recipient, uint256 tokensBought);
+    error UniswapV1Exchange__InvalidRecipient();
 
     ////////////////////////////////
     //      State Variables       //
     ////////////////////////////////
     IERC20 private immutable i_token;
 
+    ////////////////////////////////
+    //           Events           //
+    ////////////////////////////////
+    event TokenPurchase(address indexed buyer, uint256 ethSold, uint256 tokensBought);
+
+    ////////////////////////////////
+    //          Functions         //
+    ////////////////////////////////
     constructor(address _tokenAddress) {
         if (_tokenAddress == address(0)) {
             revert UniswapV1Exchange__ZeroAddress();
@@ -45,11 +59,33 @@ contract UniswapV1Exchange {
         i_token = IERC20(_tokenAddress);
     }
 
+    ////////////////////////////////
+    //     External Functions     //
+    ////////////////////////////////
+
+    ////////////////////////////////
+    //       Public Functions     //
+    ////////////////////////////////
+    /**
+     * @notice Converts ETH to Tokens.
+     * @dev User specifies exact input (msg.value) and minimum output.
+     * @param _minTokens Minimum Tokens bought.
+     * @param _deadline Time after which this transaction can no longer be executed.
+     * @return Amount of Tokens bought
+     */
+    function ethToTokenSwapInput(uint256 _minTokens, uint256 _deadline) public payable returns (uint256) {
+        return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, msg.sender);
+    }
+
+    /////////////////////////////////
+    //       Private Functions     //
+    /////////////////////////////////
+
     //////////////////////////////////////////////////////
     //     Private & Internal View & Pure Functions     //
     //////////////////////////////////////////////////////
     /**
-     * @notice Calculates output amount for an exact input swap.
+     * @notice Pricing function for converting between ETH and Tokens.
      * @param _inputAmount Amount of input asset sold.
      * @param _inputReserve Reserve of input asset.
      * @param _outputReserve Reserve of output asset.
@@ -61,7 +97,7 @@ contract UniswapV1Exchange {
         returns (uint256)
     {
         if (_inputAmount == 0) {
-            revert UniswapV1Exchange__InsufficientInputAmount();
+            revert UniswapV1Exchange__InputAmountIsZero();
         }
         if (_inputReserve == 0 || _outputReserve == 0) {
             revert UniswapV1Exchange__InsufficientReserves();
@@ -70,8 +106,53 @@ contract UniswapV1Exchange {
         uint256 inputAmountWithFee = _inputAmount * 997;
         uint256 numerator = inputAmountWithFee * _outputReserve;
         uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
-
         return numerator / denominator;
+    }
+
+    /**
+     * @notice Executes an ETH to token swap.
+     * @param _ethSold Amount of ETH sold.
+     * @param _minTokens Minimum amount of tokens bought.
+     * @param _deadline Swap deadline timestamp.
+     * @param _buyer Address paying ETH.
+     * @param _recipient Address receiving tokens.
+     * @return Amount of tokens bought.
+     */
+    function _ethToTokenInput(
+        uint256 _ethSold,
+        uint256 _minTokens,
+        uint256 _deadline,
+        address _buyer,
+        address _recipient
+    ) private returns (uint256) {
+        if (block.timestamp > _deadline) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+        if (_ethSold == 0) {
+            revert UniswapV1Exchange__EthSoldIsZero();
+        }
+        if (_minTokens == 0) {
+            revert UniswapV1Exchange__MinTokensIsZero();
+        }
+
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserveBeforeSwap = address(this).balance - _ethSold;
+
+        uint256 tokensBought = _getInputPrice(_ethSold, ethReserveBeforeSwap, tokenReserve);
+
+        // Slippage protection
+        if (tokensBought < _minTokens) {
+            revert UniswapV1Exchange__InsufficientOutput();
+        }
+
+        bool success = i_token.transfer(_recipient, tokensBought);
+        if (!success) {
+            revert UniswapV1Exchange__TransferFailed(_recipient, tokensBought);
+        }
+
+        emit TokenPurchase(_buyer, _ethSold, _tokensBought);
+
+        return tokensBought;
     }
 
     //////////////////////////////////////////////////////
@@ -87,5 +168,20 @@ contract UniswapV1Exchange {
         returns (uint256)
     {
         return _getInputPrice(_inputAmount, _inputReserve, _outputReserve);
+    }
+
+    /**
+     * @notice Returns how many tokens are bought for an exact ETH input.
+     * @param _ethSold Amount of ETH sold.
+     * @return Amount of tokens bought.
+     */
+    function getEthToTokenInputPrice(uint256 _ethSold) external view returns (uint256) {
+        if (_ethSold == 0) {
+            revert UniswapV1Exchange__EthSoldIsZero();
+        }
+        uint256 ethReserve = address(this).balance;
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+
+        return _getInputPrice(_ethSold, ethReserve, tokenReserve);
     }
 }
