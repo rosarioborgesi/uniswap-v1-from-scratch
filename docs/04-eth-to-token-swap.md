@@ -303,7 +303,7 @@ getAmountOut(
 
 The implementation is almost identical, the main difference is architectural:
 - Uniswap V1 places the pricing logic inside the exchange contract [uniswap_exchange.py](https://github.com/Uniswap/v1-contracts/blob/master/contracts/uniswap_exchange.vy)
-- Uniswap V2 places the pricing logic inside [`UniswapV2Library`]((https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol))
+- Uniswap V2 places the pricing logic inside [`UniswapV2Library`](https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol)
 
 ---
 
