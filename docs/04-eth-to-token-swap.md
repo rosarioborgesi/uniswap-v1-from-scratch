@@ -467,62 +467,7 @@ transfer tokens to recipient
 
 ---
 
-# Why This Order?
+<!-- # Integration test
 
-We build the functions in this order:
+The test file that tests ETH → ERC20 token swap in the original Uniswap V1 contract is [`test_eth_to_token.py`](https://github.com/Uniswap/v1-contracts/blob/master/tests/exchange/test_token_to_token.py) -->
 
-```text
-1. tokenAddress()
-2. _getInputPrice()
-3. getEthToTokenInputPrice()
-4. _ethToTokenInput()
-5. ethToTokenSwapInput()
-```
-
-Reason:
-
-```text
-tokenAddress()
-→ confirms the exchange token
-
-_getInputPrice()
-→ implements the AMM math
-
-getEthToTokenInputPrice()
-→ exposes price quotes
-
-_ethToTokenInput()
-→ implements the swap logic
-
-ethToTokenSwapInput()
-→ exposes the swap to users
-```
-
-This keeps the implementation simple and incremental.
-
----
-
-# First Test Goal
-
-For the first test, we manually seed the exchange with reserves:
-
-```text
-10 ETH
-1,000 tokens
-```
-
-Then a user swaps:
-
-```text
-1 ETH
-```
-
-The test should check that:
-- the user receives tokens
-- the exchange receives ETH
-- the exchange token reserve decreases
-- the output matches `getEthToTokenInputPrice()`
-
-For now, liquidity is added manually in the test.
-
-We will implement proper liquidity providing later.

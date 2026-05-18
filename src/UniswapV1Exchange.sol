@@ -35,7 +35,7 @@ contract UniswapV1Exchange {
     error UniswapV1Exchange__EthSoldIsZero();
     error UniswapV1Exchange__DeadlineExpired();
     error UniswapV1Exchange__MinTokensIsZero();
-    error UniswapV1Exchange__InsufficientOutput();
+    error UniswapV1Exchange__InsufficientOutputAmount();
     error UniswapV1Exchange__TransferFailed(address recipient, uint256 tokensBought);
     error UniswapV1Exchange__InvalidRecipient();
 
@@ -142,7 +142,7 @@ contract UniswapV1Exchange {
 
         // Slippage protection
         if (tokensBought < _minTokens) {
-            revert UniswapV1Exchange__InsufficientOutput();
+            revert UniswapV1Exchange__InsufficientOutputAmount();
         }
 
         bool success = i_token.transfer(_recipient, tokensBought);
