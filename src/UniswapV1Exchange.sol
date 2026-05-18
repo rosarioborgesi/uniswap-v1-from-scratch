@@ -59,6 +59,15 @@ contract UniswapV1Exchange {
         i_token = IERC20(_tokenAddress);
     }
 
+    /**
+     * @notice Convert ETH to Tokens.
+     * @dev User specifies exact input (msg.value).
+     * @dev User cannot specify minimum output or deadline.
+     */
+    receive() external payable {
+        _ethToTokenInput(msg.value, 1, block.timestamp, msg.sender, msg.sender);
+    }
+
     ////////////////////////////////
     //     External Functions     //
     ////////////////////////////////
@@ -75,6 +84,25 @@ contract UniswapV1Exchange {
      */
     function ethToTokenSwapInput(uint256 _minTokens, uint256 _deadline) public payable returns (uint256) {
         return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, msg.sender);
+    }
+
+    /**
+     * @notice Converts ETH to tokens and transfers tokens to recipient.
+     * @dev User specifies exact ETH input with msg.value and minimum token output.
+     * @param _minTokens Minimum amount of tokens bought.
+     * @param _deadline Timestamp after which the transaction can no longer be executed.
+     * @param _recipient Address receiving the output tokens.
+     * @return Amount of tokens bought.
+     */
+    function ethToTokenTransferInput(uint256 _minTokens, uint256 _deadline, address _recipient)
+        public
+        payable
+        returns (uint256)
+    {
+        if (_recipient == address(this) || _recipient == address(0)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, _recipient);
     }
 
     /////////////////////////////////

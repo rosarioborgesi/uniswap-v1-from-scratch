@@ -10,15 +10,16 @@ contract UniswapV1ExchangeUnitTest is Test {
     ERC20Mock public token;
 
     address user = makeAddr("user");
+    address alice = makeAddr("alice");
 
     function setUp() external {
         token = new ERC20Mock();
         exchange = new UniswapV1Exchange(address(token));
     }
 
-    //////////////////
-    // Constructor  //
-    //////////////////
+    ///////////////////////
+    //    Constructor    //
+    ///////////////////////
     function testRevertsIfTokenAddressIsZero() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__ZeroAddress.selector);
         new UniswapV1Exchange(address(0));
@@ -44,7 +45,7 @@ contract UniswapV1ExchangeUnitTest is Test {
     }
 
     ///////////////////////////////
-    //     ethToTokenSwapInput   //
+    //    ethToTokenSwapInput    //
     ///////////////////////////////
     modifier withLiquidity(uint256 ethReserve, uint256 tokenReserve) {
         // ETH reserve
@@ -95,5 +96,36 @@ contract UniswapV1ExchangeUnitTest is Test {
     function testRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
         exchange.ethToTokenSwapInput{value: 1 ether}(1, block.timestamp - 1);
+    }
+
+    ///////////////////////////////////
+    //    ethToTokenTransferInput    //
+    ///////////////////////////////////
+    function testCanSwapEthForTokensAndTransferToRecipient() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 ethReserve = 10 ether;
+        uint256 tokenReserve = 1_000 ether;
+        uint256 ethSold = 1 ether;
+
+        deal(user, ethSold);
+
+        uint256 tokensBought = exchange.getEthToTokenInputPrice(ethSold);
+
+        vm.prank(user);
+        uint256 actualTokensBought = exchange.ethToTokenTransferInput{value: ethSold}(1, block.timestamp, alice);
+
+        assertEq(actualTokensBought, tokensBought);
+        assertEq(address(exchange).balance, ethReserve + ethSold);
+        assertEq(address(user).balance, 0);
+        assertEq(token.balanceOf(address(exchange)), tokenReserve - actualTokensBought);
+        assertEq(token.balanceOf(user), 0);
+        assertEq(token.balanceOf(alice), tokensBought);
+    }
+
+    function testRevertsOnInvalidReceiver() external withLiquidity(10 ether, 1_000 ether) {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
+        exchange.ethToTokenTransferInput{value: 1 ether}(1, block.timestamp, address(exchange));
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
+        exchange.ethToTokenTransferInput{value: 1 ether}(1, block.timestamp, address(0));
     }
 }

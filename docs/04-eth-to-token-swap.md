@@ -471,3 +471,62 @@ transfer tokens to recipient
 
 The test file that tests ETH → ERC20 token swap in the original Uniswap V1 contract is [`test_eth_to_token.py`](https://github.com/Uniswap/v1-contracts/blob/master/tests/exchange/test_token_to_token.py) -->
 
+
+# receive Function
+
+When a user sends ETH directly to the contract, the `receive` function is triggered.
+
+The function internally calls `_ethToTokenInput()`.
+
+In this case, the user cannot specify:
+- the minimum amount of tokens bought (`1`)
+- the deadline (`block.timestamp`)
+
+This mirrors the original Uniswap V1 behavior and allows users to swap ETH for tokens by simply sending ETH to the exchange contract.
+
+
+# `ethToTokenTransferInput()`
+
+```solidity
+function ethToTokenTransferInput(
+    uint256 _minTokens,
+    uint256 _deadline,
+    address _recipient
+) public payable returns (uint256)
+```
+
+This function performs an ETH → token swap and sends the output tokens to another address.
+
+Unlike:
+
+```solidity
+ethToTokenSwapInput()
+```
+
+where:
+- buyer = recipient
+
+this function allows:
+
+```text
+buyer != recipient
+```
+
+This is useful for:
+- payments
+- smart contract integrations
+- sending swapped tokens directly to another user
+
+---
+
+The original Uniswap V1 implementation checks that the recipient is valid.
+
+The recipient:
+- cannot be the exchange contract itself
+- cannot be the zero address
+
+The function reuses the internal:
+
+```solidity
+_ethToTokenInput()
+```
