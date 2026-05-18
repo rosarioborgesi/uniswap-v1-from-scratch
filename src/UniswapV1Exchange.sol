@@ -150,7 +150,7 @@ contract UniswapV1Exchange {
             revert UniswapV1Exchange__TransferFailed(_recipient, tokensBought);
         }
 
-        emit TokenPurchase(_buyer, _ethSold, _tokensBought);
+        emit TokenPurchase(_buyer, _ethSold, tokensBought);
 
         return tokensBought;
     }
