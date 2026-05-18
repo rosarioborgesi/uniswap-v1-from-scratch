@@ -46,15 +46,18 @@ contract UniswapV1ExchangeUnitTest is Test {
     ///////////////////////////////
     //     ethToTokenSwapInput   //
     ///////////////////////////////
-    function testCanSwapEthForTokens() external {
+    modifier withLiquidity(uint256 ethReserve, uint256 tokenReserve) {
+        // ETH reserve
+        deal(address(exchange), ethReserve);
+        // Token reserve
+        token.mint(address(exchange), tokenReserve);
+        _;
+    }
+
+    function testCanSwapEthForTokens() external withLiquidity(10 ether, 1_000 ether) {
         uint256 ethReserve = 10 ether;
         uint256 tokenReserve = 1_000 ether;
         uint256 ethSold = 1 ether;
-
-        // Creating the ETH reserve
-        deal(address(exchange), ethReserve);
-        // Creating the token reserve
-        token.mint(address(exchange), tokenReserve);
 
         deal(user, ethSold);
 
@@ -71,41 +74,26 @@ contract UniswapV1ExchangeUnitTest is Test {
     }
 
     function testRevertsWithZeroEthSold() external {
-        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InputAmountIsZero.selector);
-
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthSoldIsZero.selector);
         exchange.ethToTokenSwapInput{value: 0}(1, block.timestamp);
     }
 
-    function testRevertsWithZeroMinTokens() external {
-        deal(address(exchange), 10 ether);
-        token.mint(address(exchange), 1_000 ether);
-
-        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientOutputAmount.selector);
-
+    function testRevertsWithZeroMinTokens() external withLiquidity(10 ether, 1_000 ether) {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MinTokensIsZero.selector);
         exchange.ethToTokenSwapInput{value: 1 ether}(0, block.timestamp);
     }
 
-    function testRevertsIfMinTokensTooHigh() external {
-        uint256 ethReserve = 10 ether;
-        uint256 tokenReserve = 1_000 ether;
+    function testRevertsIfMinTokensTooHigh() external withLiquidity(10 ether, 1_000 ether) {
         uint256 ethSold = 1 ether;
-
-        deal(address(exchange), ethReserve);
-        token.mint(address(exchange), tokenReserve);
 
         uint256 tokensBought = exchange.getEthToTokenInputPrice(ethSold);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientOutputAmount.selector);
-
         exchange.ethToTokenSwapInput{value: ethSold}(tokensBought + 1, block.timestamp);
     }
 
-    function testRevertsIfDeadlinePassed() external {
-        deal(address(exchange), 10 ether);
-        token.mint(address(exchange), 1_000 ether);
-
+    function testRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
-
         exchange.ethToTokenSwapInput{value: 1 ether}(1, block.timestamp - 1);
     }
 }
