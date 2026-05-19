@@ -36,10 +36,14 @@ contract UniswapV1Exchange {
     error UniswapV1Exchange__DeadlineExpired();
     error UniswapV1Exchange__MinTokensIsZero();
     error UniswapV1Exchange__InsufficientOutputAmount();
-    error UniswapV1Exchange__TransferFailed(address recipient, uint256 tokensBought);
+    error UniswapV1Exchange__TokenTransferFailed(address recipient, uint256 tokensBought);
     error UniswapV1Exchange__InvalidRecipient();
     error UniswapV1Exchange__OutputAmountIsZero();
     error UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve();
+    error UniswapV1Exchange__TokensBoughtIsZero();
+    error UniswapV1Exchange__MaxEthIsZero();
+    error UniswapV1Exchange__EthSoldExceedsMaxEth();
+    error UniswapV1Exchange__EthTransferFailed(address, recipient, uint256 amount);
 
     ////////////////////////////////
     //      State Variables       //
@@ -206,12 +210,68 @@ contract UniswapV1Exchange {
 
         bool success = i_token.transfer(_recipient, tokensBought);
         if (!success) {
-            revert UniswapV1Exchange__TransferFailed(_recipient, tokensBought);
+            revert UniswapV1Exchange__TokenTransferFailed(_recipient, tokensBought);
         }
 
         emit TokenPurchase(_buyer, _ethSold, tokensBought);
 
         return tokensBought;
+    }
+
+    /**
+     * @notice Converts ETH to an exact amount of tokens.
+     * @dev User specifies the exact token output and maximum ETH input.
+     * @param _tokensBought Amount of tokens bought.
+     * @param _maxEth Maximum amount of ETH sold.
+     * @param _deadline Timestamp after which the transaction can no longer be executed.
+     * @param _buyer Address paying ETH.
+     * @param _recipient Address receiving tokens.
+     * @return Amount of ETH sold.
+     */
+    function _ethToTokenOutput(
+        uint256 _tokensBought,
+        uint256 _maxEth,
+        uint256 _deadline,
+        address _buyer,
+        address _recipient
+    ) private returns (uint256) {
+        if (_deadline < block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+        if (_tokensBought == 0) {
+            revert UniswapV1Exchange__TokensBoughtIsZero();
+        }
+        if (_maxEth == 0) {
+            revert UniswapV1Exchange__MaxEthIsZero();
+        }
+
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance - _maxEth;
+
+        uint256 ethSold = _getOutputPrice(_tokensBought, ethReserve, tokenReserve);
+
+        // Slippage protection
+        if (ethSold > _maxEth) {
+            revert UniswapV1Exchange__EthSoldExceedsMaxEth();
+        }
+
+        uint256 ethRefund = _maxEth - ethSold;
+
+        if (ethRefund > 0) {
+            (bool ethTransferSuccess,) = _buyer.call{value: ethRefund}("");
+            if (!ethTransferSuccess) {
+                revert UniswapV1Exchange__EthTransferFailed(_buyer, ethRefund);
+            }
+        }
+
+        bool tokenTransferSuccess = i_token.transfer(_recipient, _tokensBought);
+        if (!tokenTransferSuccess) {
+            revert UniswapV1Exchange__TokenTransferFailed(_recipient, _tokensBought);
+        }
+
+        emit TokenPurchase(_buyer, ethSold, _tokensBought);
+
+        return ethSold;
     }
 
     //////////////////////////////////////////////////////
