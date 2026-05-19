@@ -72,7 +72,7 @@ The formula includes the Uniswap V1 fee:
 
 ## Deriving `_getInputPrice`
 
-The swap is based on the constant product formula:
+The swap is based on the constant product invariant:
 
 $$
 x \cdot y = k
@@ -95,42 +95,57 @@ function _getInputPrice(
 
 the variables correspond to:
 
-- `_inputAmount` = `Δx`
-- `_inputReserve` = `x`
-- `_outputReserve` = `y`
-- return value = `Δy`
+```text
+Δx = input amount   -> `_inputAmount`
+x  = input reserve  -> `_inputReserve`
+y  = output reserve -> `_outputReserve`
+Δy = output amount  -> return value
+```
 
-When a user swaps an input amount `Δx`, the input reserve increases and the output reserve decreases:
+In the exact input case:
+- the user specifies the exact input amount `Δx`
+- the protocol calculates the output amount `Δy`
 
-$$
-(x + \Delta x)(y - \Delta y) = k
-$$
+After the swap:
+- the input reserve increases
+- the output reserve decreases
 
-Since:
-
-$$
-k = x \cdot y
-$$
-
-we can write:
+So:
 
 $$
 (x + \Delta x)(y - \Delta y) = x \cdot y
 $$
 
+Expanding:
+
+$$
+xy - x\Delta y + y\Delta x - \Delta x \Delta y = xy
+$$
+
+Canceling `xy` on both sides:
+
+$$
+-x\Delta y + y\Delta x - \Delta x\Delta y = 0
+$$
+
+Factoring `Δy`:
+
+$$
+\Delta y (x + \Delta x) = y\Delta x
+$$
+
 Solving for `Δy`:
 
 $$
-\Delta y = y - \frac{x \cdot y}{x + \Delta x}
+\Delta y =
+\frac{
+y \cdot \Delta x
+}{
+x + \Delta x
+}
 $$
 
-This simplifies to:
-
-$$
-\Delta y = \frac{y \cdot \Delta x}{x + \Delta x}
-$$
-
-So the output amount is:
+So the output amount becomes:
 
 ```text
 output = outputReserve * inputAmount / (inputReserve + inputAmount)
@@ -138,19 +153,20 @@ output = outputReserve * inputAmount / (inputReserve + inputAmount)
 
 ---
 
-## Adding the Fee
+### Adding the Fee
 
 Uniswap V1 charges a 0.3% fee.
 
-So only 99.7% of the input amount is used for pricing:
+So only 99.7% of the input amount contributes to pricing:
 
 $$
-\Delta x_{fee} = \Delta x \cdot \frac{997}{1000}
+\Delta x_{fee} =
+\Delta x \cdot \frac{997}{1000}
 $$
 
-To avoid decimals in Solidity, we keep the calculation scaled by `1000`.
+To avoid decimals in Solidity, the calculation is scaled by `1000`.
 
-If we replace $\Delta x$ with $\Delta x_{fee}$ inside the formula, we get:
+Replacing `Δx` with `Δx_fee` gives:
 
 $$
 \Delta y =
@@ -161,19 +177,29 @@ y \cdot (\Delta x \cdot 997)
 }
 $$
 
-In Solidity:
+Implementation:
 
 ```solidity
 uint256 inputAmountWithFee = _inputAmount * 997;
-uint256 numerator = inputAmountWithFee * _outputReserve;
-uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
+
+uint256 numerator =
+    inputAmountWithFee * _outputReserve;
+
+uint256 denominator =
+    (_inputReserve * 1000) + inputAmountWithFee;
 
 return numerator / denominator;
 ```
 
 This returns the amount of output tokens the user receives for a given input amount.
 
-Integer division rounds down, which is expected in Solidity.
+---
+
+### Integer Division
+
+Solidity integer division rounds down.
+
+This slightly favors the liquidity pool and preserves the invariant safely.
 
 ---
 
@@ -530,3 +556,207 @@ The function reuses the internal:
 ```solidity
 _ethToTokenInput()
 ```
+
+# `_getOutputPrice`
+
+The `_getOutputPrice()` function is used for exact output swaps.
+
+With `_getInputPrice()`, the user says:
+
+```text
+I want to sell exactly this amount of input.
+```
+
+With `_getOutputPrice()`, the user says:
+
+```text
+I want to buy exactly this amount of output.
+```
+
+So the function calculates how much input asset is required.
+
+---
+
+## Difference From `_getInputPrice`
+
+```text
+_getInputPrice()
+→ exact input
+→ calculate output
+
+_getOutputPrice()
+→ exact output
+→ calculate required input
+```
+
+Example:
+
+```text
+_getInputPrice():
+I sell 1 ETH. How many tokens do I get?
+
+_getOutputPrice():
+I want 100 tokens. How much ETH do I need?
+```
+
+---
+
+## Deriving `_getOutputPrice`
+
+The swap is still based on the constant product invariant:
+
+$$
+x \cdot y = k
+$$
+
+where:
+- `x` = input reserve
+- `y` = output reserve
+
+In the exact output case:
+- the user specifies the exact output amount `Δy`
+- the protocol calculates the required input amount `Δx`
+
+After the swap:
+- the input reserve increases
+- the output reserve decreases
+
+So:
+
+$$
+(x + \Delta x)(y - \Delta y) = x \cdot y
+$$
+
+Expanding:
+
+$$
+xy - x\Delta y + y\Delta x - \Delta x \Delta y = xy
+$$
+
+Canceling `xy` on both sides:
+
+$$
+-x\Delta y + y\Delta x - \Delta x\Delta y = 0
+$$
+
+Factoring `Δx`:
+
+$$
+\Delta x (y - \Delta y) = x\Delta y
+$$
+
+Solving for `Δx`:
+
+$$
+\Delta x =
+\frac{
+x \cdot \Delta y
+}{
+y - \Delta y
+}
+$$
+
+This is the exact output formula without fees.
+
+---
+
+### Adding the Fee
+
+Uniswap V1 charges a 0.3% fee.
+
+So only 99.7% of the input amount contributes to pricing:
+
+$$
+\Delta x_{fee} =
+\Delta x \cdot \frac{997}{1000}
+$$
+
+Rearranging the formula with fees gives:
+
+$$
+\Delta x =
+\frac{
+x \cdot \Delta y \cdot 1000
+}{
+(y - \Delta y) \cdot 997
+}
+$$
+
+Mapping to Solidity:
+
+```solidity
+function _getOutputPrice(
+    uint256 _outputAmount,
+    uint256 _inputReserve,
+    uint256 _outputReserve
+) private pure returns (uint256) {
+    uint256 numerator =
+        _inputReserve * _outputAmount * 1000;
+
+    uint256 denominator =
+        (_outputReserve - _outputAmount) * 997;
+
+    return numerator / denominator + 1;
+}
+```
+
+where
+
+```text
+Δx = required input amount  -> return value
+x  = input reserve          -> `_inputReserve`
+y  = output reserve         -> `_outputReserve`
+Δy = desired output amount  -> `_outputAmount`
+```
+
+---
+
+### Why We Add `+ 1`
+
+Solidity integer division rounds down.
+
+Without `+1`, the trader could pay slightly less than required while still receiving the exact output amount.
+
+Adding `+1` guarantees the pool receives enough input tokens to preserve the invariant.
+
+---
+
+## When It Is Used
+
+For the ETH → token flow, `_getOutputPrice()` is used by:
+
+```text
+getEthToTokenOutputPrice()
+ethToTokenSwapOutput()
+ethToTokenTransferOutput()
+```
+
+These functions are the exact output versions of the ETH → token swap.
+
+---
+
+# Call Flow
+
+```text
+User calls ethToTokenSwapOutput()
+        |
+        v
+ethToTokenSwapOutput()
+        |
+        v
+_ethToTokenOutput()
+        |
+        v
+_getOutputPrice()
+        |
+        v
+transfer tokens to user
+        |
+        v
+refund unused ETH
+```
+
+---
+
+
+

@@ -38,6 +38,8 @@ contract UniswapV1Exchange {
     error UniswapV1Exchange__InsufficientOutputAmount();
     error UniswapV1Exchange__TransferFailed(address recipient, uint256 tokensBought);
     error UniswapV1Exchange__InvalidRecipient();
+    error UniswapV1Exchange__OutputAmountIsZero();
+    error UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve();
 
     ////////////////////////////////
     //      State Variables       //
@@ -138,6 +140,35 @@ contract UniswapV1Exchange {
     }
 
     /**
+     * @dev Pricing function for converting between ETH and tokens.
+     * @param _outputAmount Amount of ETH or tokens being bought.
+     * @param _inputReserve Amount of input asset in exchange reserves.
+     * @param _outputReserve Amount of output asset in exchange reserves.
+     * @return Amount of input asset sold.
+     */
+    function _getOutputPrice(uint256 _outputAmount, uint256 _inputReserve, uint256 _outputReserve)
+        private
+        pure
+        returns (uint256)
+    {
+        if (_outputAmount == 0) {
+            revert UniswapV1Exchange__OutputAmountIsZero();
+        }
+        if (_inputReserve == 0 || _outputReserve == 0) {
+            revert UniswapV1Exchange__InsufficientReserves();
+        }
+
+        if (_outputAmount >= _outputReserve) {
+            revert UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve();
+        }
+
+        uint256 numerator = _inputReserve * _outputAmount * 1000;
+        uint256 denominator = (_outputReserve - _outputAmount) * 997;
+
+        return (numerator / denominator) + 1;
+    }
+
+    /**
      * @notice Executes an ETH to token swap.
      * @param _ethSold Amount of ETH sold.
      * @param _minTokens Minimum amount of tokens bought.
@@ -211,5 +242,13 @@ contract UniswapV1Exchange {
         uint256 tokenReserve = i_token.balanceOf(address(this));
 
         return _getInputPrice(_ethSold, ethReserve, tokenReserve);
+    }
+
+    function getOutputPrice(uint256 _outputAmount, uint256 _inputReserve, uint256 _outputReserve)
+        external
+        pure
+        returns (uint256)
+    {
+        return _getOutputPrice(_outputAmount, _inputReserve, _outputReserve);
     }
 }

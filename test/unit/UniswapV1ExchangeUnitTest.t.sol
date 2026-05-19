@@ -128,4 +128,28 @@ contract UniswapV1ExchangeUnitTest is Test {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
         exchange.ethToTokenTransferInput{value: 1 ether}(1, block.timestamp, address(0));
     }
+
+    //////////////////////////
+    //    getOutputPrice    //
+    //////////////////////////
+    function testGetOutputPriceRevertsWithZeroOutputAmount() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__OutputAmountIsZero.selector);
+        exchange.getOutputPrice(0, 10 ether, 1_000 ether);
+    }
+
+    function testGetOutputPriceRevertsWithZeroReserves() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientReserves.selector);
+        exchange.getOutputPrice(1 ether, 0, 1_000 ether);
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientReserves.selector);
+        exchange.getOutputPrice(1 ether, 10 ether, 0);
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientReserves.selector);
+        exchange.getOutputPrice(1 ether, 0, 0);
+    }
+
+    function testGetOutputPriceRevertsWhenOutputAmountExceedsReserve() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve.selector);
+        exchange.getOutputPrice(1_000 ether, 10 ether, 1_000 ether);
+    }
 }
