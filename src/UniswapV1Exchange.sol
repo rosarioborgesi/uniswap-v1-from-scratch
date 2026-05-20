@@ -145,63 +145,6 @@ contract UniswapV1Exchange {
     //       Private Functions     //
     /////////////////////////////////
 
-    //////////////////////////////////////////////////////
-    //     Private & Internal View & Pure Functions     //
-    //////////////////////////////////////////////////////
-    /**
-     * @notice Pricing function for converting between ETH and Tokens.
-     * @param _inputAmount Amount of input asset sold.
-     * @param _inputReserve Reserve of input asset.
-     * @param _outputReserve Reserve of output asset.
-     * @return Amount of output asset bought.
-     */
-    function _getInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve)
-        private
-        pure
-        returns (uint256)
-    {
-        if (_inputAmount == 0) {
-            revert UniswapV1Exchange__InputAmountIsZero();
-        }
-        if (_inputReserve == 0 || _outputReserve == 0) {
-            revert UniswapV1Exchange__InsufficientReserves();
-        }
-
-        uint256 inputAmountWithFee = _inputAmount * 997;
-        uint256 numerator = inputAmountWithFee * _outputReserve;
-        uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
-        return numerator / denominator;
-    }
-
-    /**
-     * @dev Pricing function for converting between ETH and tokens.
-     * @param _outputAmount Amount of ETH or tokens being bought.
-     * @param _inputReserve Amount of input asset in exchange reserves.
-     * @param _outputReserve Amount of output asset in exchange reserves.
-     * @return Amount of input asset sold.
-     */
-    function _getOutputPrice(uint256 _outputAmount, uint256 _inputReserve, uint256 _outputReserve)
-        private
-        pure
-        returns (uint256)
-    {
-        if (_outputAmount == 0) {
-            revert UniswapV1Exchange__OutputAmountIsZero();
-        }
-        if (_inputReserve == 0 || _outputReserve == 0) {
-            revert UniswapV1Exchange__InsufficientReserves();
-        }
-
-        if (_outputAmount >= _outputReserve) {
-            revert UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve();
-        }
-
-        uint256 numerator = _inputReserve * _outputAmount * 1000;
-        uint256 denominator = (_outputReserve - _outputAmount) * 997;
-
-        return (numerator / denominator) + 1;
-    }
-
     /**
      * @notice Executes an ETH to token swap.
      * @param _ethSold Amount of ETH sold.
@@ -311,6 +254,63 @@ contract UniswapV1Exchange {
         emit TokenPurchase(_buyer, ethSold, _tokensBought);
 
         return ethSold;
+    }
+
+    //////////////////////////////////////////////////////
+    //     Private & Internal View & Pure Functions     //
+    //////////////////////////////////////////////////////
+    /**
+     * @notice Pricing function for converting between ETH and Tokens.
+     * @param _inputAmount Amount of input asset sold.
+     * @param _inputReserve Reserve of input asset.
+     * @param _outputReserve Reserve of output asset.
+     * @return Amount of output asset bought.
+     */
+    function _getInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve)
+        private
+        pure
+        returns (uint256)
+    {
+        if (_inputAmount == 0) {
+            revert UniswapV1Exchange__InputAmountIsZero();
+        }
+        if (_inputReserve == 0 || _outputReserve == 0) {
+            revert UniswapV1Exchange__InsufficientReserves();
+        }
+
+        uint256 inputAmountWithFee = _inputAmount * 997;
+        uint256 numerator = inputAmountWithFee * _outputReserve;
+        uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
+        return numerator / denominator;
+    }
+
+    /**
+     * @dev Pricing function for converting between ETH and tokens.
+     * @param _outputAmount Amount of ETH or tokens being bought.
+     * @param _inputReserve Amount of input asset in exchange reserves.
+     * @param _outputReserve Amount of output asset in exchange reserves.
+     * @return Amount of input asset sold.
+     */
+    function _getOutputPrice(uint256 _outputAmount, uint256 _inputReserve, uint256 _outputReserve)
+        private
+        pure
+        returns (uint256)
+    {
+        if (_outputAmount == 0) {
+            revert UniswapV1Exchange__OutputAmountIsZero();
+        }
+        if (_inputReserve == 0 || _outputReserve == 0) {
+            revert UniswapV1Exchange__InsufficientReserves();
+        }
+
+        if (_outputAmount >= _outputReserve) {
+            revert UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve();
+        }
+
+        uint256 numerator = _inputReserve * _outputAmount * 1000;
+        uint256 denominator = (_outputReserve - _outputAmount) * 997;
+
+        return (numerator / denominator) + 1;
     }
 
     //////////////////////////////////////////////////////

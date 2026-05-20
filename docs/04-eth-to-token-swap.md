@@ -1,31 +1,12 @@
 # ETH to Token Swap
 
-In this first version we focus only on the core AMM logic:
+In this first version we focus only on the core AMM logic for:
 
 ```text
 ETH → ERC20 token
 ```
 
-We ignore for now:
-- factory
-- liquidity providing
-- LP tokens
-- token to ETH swaps
-- token to token swaps
-
-The goal is to build the smallest working version of the exchange.
-
----
-
-# tokenAddress()
-
-```solidity
-function tokenAddress() external view returns (address)
-```
-
-This returns the ERC20 token traded by the exchange.
-
-Each exchange is linked to one token.
+Each Uniswap V1 exchange is linked to a single ERC20 token.
 
 Example:
 
@@ -34,6 +15,52 @@ ETH <-> DAI
 ETH <-> USDC
 ETH <-> WETH
 ```
+
+For now, we ignore:
+- factory
+- liquidity providing
+- LP tokens
+- token to ETH swaps
+- token to token swaps
+
+The goal is to build the smallest working version of the exchange and understand the core AMM mechanics step by step.
+
+---
+
+# Exchange Token
+
+The exchange needs to know which ERC20 token it trades against ETH.
+
+For this reason we define the immutable variable:
+
+```solidity
+IERC20 private immutable i_token;
+```
+
+The token address is assigned in the constructor:
+
+```solidity
+constructor(address _tokenAddress) {
+    if (_tokenAddress == address(0)) {
+        revert UniswapV1Exchange__ZeroAddress();
+    }
+
+    i_token = IERC20(_tokenAddress);
+}
+```
+
+We declare the token as `immutable` because:
+- the token never changes after deployment
+- it is cheaper than a normal storage variable
+- every Uniswap V1 exchange is permanently linked to one token
+
+We also expose a getter:
+
+```solidity
+function tokenAddress() external view returns (address)
+```
+
+This returns the ERC20 token traded by the exchange.
 
 
 ---
@@ -539,12 +566,6 @@ _recipient = msg.sender
 So in this first version, the user who pays ETH also receives the tokens.
 
 ---
-
-
-<!-- # Integration test
-
-The test file that tests ETH → ERC20 token swap in the original Uniswap V1 contract is [`test_eth_to_token.py`](https://github.com/Uniswap/v1-contracts/blob/master/tests/exchange/test_token_to_token.py) -->
-
 
 # receive Function
 
@@ -1101,4 +1122,6 @@ transfer tokens to user
 ```
 ---
 
+<!-- # Integration test
 
+The test file that tests ETH → ERC20 token swap in the original Uniswap V1 contract is [`test_eth_to_token.py`](https://github.com/Uniswap/v1-contracts/blob/master/tests/exchange/test_token_to_token.py) -->
