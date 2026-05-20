@@ -17,21 +17,7 @@ The goal is to build the smallest working version of the exchange.
 
 ---
 
-# Final Structure
-
-To perform an ETH to token swap we need these functions:
-
-```text
-ethToTokenSwapInput()
-_ethToTokenInput()
-getEthToTokenInputPrice()
-_getInputPrice()
-tokenAddress()
-```
-
----
-
-# 1. tokenAddress()
+# tokenAddress()
 
 ```solidity
 function tokenAddress() external view returns (address)
@@ -49,9 +35,90 @@ ETH <-> USDC
 ETH <-> WETH
 ```
 
+
 ---
 
-# 2. _getInputPrice()
+# ETH → Token Input Swap Flow
+
+For the ETH → token exact input flow, users can call:
+
+```solidity
+ethToTokenSwapInput()
+```
+
+or:
+
+```solidity
+ethToTokenTransferInput()
+```
+
+The difference is:
+
+```text
+ethToTokenSwapInput()
+→ buyer receives tokens
+
+ethToTokenTransferInput()
+→ another recipient receives tokens
+```
+
+Both functions reuse the same internal swap logic:
+
+```text
+User calls ethToTokenSwapInput()
+        |
+        | OR
+        |
+User calls ethToTokenTransferInput()
+        |
+        v
+_ethToTokenInput()
+        |
+        v
+_getInputPrice()
+        |
+        v
+transfer tokens to recipient
+```
+
+---
+
+## Why We Build The Functions In This Order
+
+We implemented the functions incrementally:
+
+```text
+1. _getInputPrice()
+2. getEthToTokenInputPrice()
+3. _ethToTokenInput()
+4. ethToTokenSwapInput()
+5. ethToTokenTransferInput()
+```
+
+Reason:
+
+```text
+_getInputPrice()
+→ implements the AMM pricing math
+
+getEthToTokenInputPrice()
+→ exposes public price quotes
+
+_ethToTokenInput()
+→ implements the core swap logic
+
+ethToTokenSwapInput()
+→ user swaps ETH for tokens
+
+ethToTokenTransferInput()
+→ user swaps ETH and sends tokens to another address
+```
+
+This mirrors the architecture of the original Uniswap V1 implementation and keeps the implementation modular and incremental.
+
+---
+
+# _getInputPrice()
 
 The `_getInputPrice()` function calculates how much output asset the user receives for a given input amount.
 
@@ -351,7 +418,7 @@ This gives higher confidence in the correctness of the AMM math and helps detect
 
 --- 
 
-# 3. getEthToTokenInputPrice()
+# getEthToTokenInputPrice()
 
 ```solidity
 function getEthToTokenInputPrice(uint256 _ethSold) external view returns (uint256)
@@ -370,7 +437,7 @@ The function:
 
 ---
 
-# 4. _ethToTokenInput()
+# _ethToTokenInput()
 
 ```solidity
 function _ethToTokenInput(
@@ -449,7 +516,7 @@ But more advanced flows may separate them.
 
 ---
 
-# 5. ethToTokenSwapInput()
+# ethToTokenSwapInput()
 
 ```solidity
 function ethToTokenSwapInput(
@@ -473,25 +540,6 @@ So in this first version, the user who pays ETH also receives the tokens.
 
 ---
 
-# Execution Flow
-
-```text
-User calls ethToTokenSwapInput()
-        |
-        v
-ethToTokenSwapInput()
-        |
-        v
-_ethToTokenInput()
-        |
-        v
-_getInputPrice()
-        |
-        v
-transfer tokens to recipient
-```
-
----
 
 <!-- # Integration test
 
@@ -599,7 +647,105 @@ _getOutputPrice():
 I want 100 tokens. How much ETH do I need?
 ```
 
+# ETH → Token Output Swap Flow
+
+For the ETH → token exact output flow, users can call:
+
+```solidity
+ethToTokenSwapOutput()
+```
+
+or:
+
+```solidity
+ethToTokenTransferOutput()
+```
+
+The difference is:
+
+```text
+ethToTokenSwapOutput()
+→ buyer receives tokens
+
+ethToTokenTransferOutput()
+→ another recipient receives tokens
+```
+
+Both functions reuse the same internal swap logic:
+
+```text
+User calls ethToTokenSwapOutput()
+        |
+        | OR
+        |
+User calls ethToTokenTransferOutput()
+        |
+        v
+_ethToTokenOutput()
+        |
+        v
+_getOutputPrice()
+        |
+        v
+refund unused ETH
+        |
+        v
+transfer tokens to recipient
+```
+
 ---
+
+## Why We Build The Functions In This Order
+
+We implemented the functions incrementally:
+
+```text
+1. _getOutputPrice()
+2. getEthToTokenOutputPrice()
+3. _ethToTokenOutput()
+4. ethToTokenSwapOutput()
+5. ethToTokenTransferOutput()
+```
+
+Reason:
+
+```text
+_getOutputPrice()
+→ implements the exact output AMM math
+
+getEthToTokenOutputPrice()
+→ exposes public price quotes
+
+_ethToTokenOutput()
+→ implements the core exact output swap logic
+
+ethToTokenSwapOutput()
+→ user buys an exact amount of tokens
+
+ethToTokenTransferOutput()
+→ user buys tokens and sends them to another address
+```
+
+Unlike exact input swaps:
+
+```text
+user specifies ETH input
+→ protocol calculates token output
+```
+
+exact output swaps work as:
+
+```text
+user specifies token output
+→ protocol calculates required ETH input
+```
+
+This mirrors the architecture of the original Uniswap V1 implementation and keeps the implementation modular and incremental.
+
+
+---
+
+# `_getOutputPrice`
 
 ## Deriving `_getOutputPrice`
 
@@ -735,13 +881,211 @@ These functions are the exact output versions of the ETH → token swap.
 
 ---
 
-# Call Flow
+# `_ethToTokenOutput()`
+
+```solidity
+function _ethToTokenOutput(
+    uint256 _tokensBought,
+    uint256 _maxEth,
+    uint256 _deadline,
+    address _buyer,
+    address _recipient
+) private returns (uint256)
+```
+
+This is the internal exact output swap function.
+
+Unlike `_ethToTokenInput()`:
+
+```text
+user specifies exact ETH input
+→ protocol calculates token output
+```
+
+here:
+
+```text
+user specifies exact token output
+→ protocol calculates required ETH input
+```
+
+---
+
+## Parameters
+
+```text
+_tokensBought
+→ exact amount of tokens the user wants
+
+_maxEth
+→ maximum ETH the user is willing to spend
+
+_deadline
+→ transaction expiration timestamp
+
+_buyer
+→ address paying ETH
+
+_recipient
+→ address receiving tokens
+```
+
+---
+
+## Execution Flow
+
+The function performs:
+
+```text
+1. check deadline
+2. validate inputs
+3. read reserves
+4. calculate ETH reserve before swap
+5. calculate required ETH input
+6. check slippage protection
+7. refund unused ETH
+8. transfer tokens
+9. emit event
+```
+
+---
+
+## ETH Reserve Before Swap
+
+```solidity
+// msg.value is already included in address(this).balance.
+// Since _maxEth = msg.value, subtracting _maxEth gives the ETH reserve
+// before the swap and can never underflow.
+uint256 ethReserve = address(this).balance - _maxEth;
+```
+
+When the function executes:
+- `msg.value` has already been added to the contract balance
+- `_maxEth = msg.value`
+
+So subtracting `_maxEth` reconstructs the ETH reserve before the swap.
+
+---
+
+## Calculating Required ETH
+
+The required ETH amount is calculated with:
+
+```solidity
+uint256 ethSold =
+    _getOutputPrice(
+        _tokensBought,
+        ethReserve,
+        tokenReserve
+    );
+```
+
+Unlike `_getInputPrice()`:
+- the user chooses the output amount
+- the protocol calculates the required input amount
+
+---
+
+## Liquidity Constraint
+
+`_getOutputPrice()` requires:
+
+```text
+_tokensBought < tokenReserve
+```
+
+otherwise the AMM invariant would break.
+
+This guarantees the exchange can never send more tokens than it owns.
+
+---
+
+## Slippage Protection
+
+```solidity
+if (ethSold > _maxEth) {
+    revert UniswapV1Exchange__EthSoldExceedsMaxEth();
+}
+```
+
+This is the slippage protection for exact output swaps.
+
+Meaning:
+
+```text
+"I want exactly these tokens,
+but I refuse to spend more than this amount of ETH."
+```
+
+If the required ETH exceeds `_maxEth`, the transaction reverts.
+
+---
+
+## ETH Refund
+
+If the user sends more ETH than required:
+
+```solidity
+uint256 ethRefund = _maxEth - ethSold;
+```
+
+the remaining ETH is refunded to the buyer.
+
+This mirrors the original Uniswap V1 implementation.
+
+---
+
+# `ethToTokenSwapOutput()`
+
+```solidity
+function ethToTokenSwapOutput(
+    uint256 _tokensBought,
+    uint256 _deadline
+) public payable returns (uint256)
+```
+
+This is the public exact output swap function.
+
+Unlike `ethToTokenSwapInput()`:
+
+```text
+user specifies exact ETH input
+→ protocol calculates token output
+```
+
+here:
+
+```text
+user specifies exact token output
+→ protocol calculates required ETH input
+```
+
+The user sends ETH with `msg.value`.
+
+In this flow:
+- `_tokensBought` is the exact amount of tokens the user wants
+- `msg.value` is the maximum ETH the user is willing to spend
+- unused ETH is refunded
+
+The function internally calls:
+
+```solidity
+_ethToTokenOutput(
+    _tokensBought,
+    msg.value,
+    _deadline,
+    msg.sender,
+    msg.sender
+)
+```
+
+So in this version:
+- buyer = recipient
+
+The exact output swap flow becomes:
 
 ```text
 User calls ethToTokenSwapOutput()
-        |
-        v
-ethToTokenSwapOutput()
         |
         v
 _ethToTokenOutput()
@@ -750,13 +1094,11 @@ _ethToTokenOutput()
 _getOutputPrice()
         |
         v
-transfer tokens to user
+refund unused ETH
         |
         v
-refund unused ETH
+transfer tokens to user
 ```
-
 ---
-
 
 

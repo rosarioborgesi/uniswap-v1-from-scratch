@@ -25,6 +25,14 @@ contract UniswapV1ExchangeUnitTest is Test {
         new UniswapV1Exchange(address(0));
     }
 
+    modifier withLiquidity(uint256 ethReserve, uint256 tokenReserve) {
+        // ETH reserve
+        deal(address(exchange), ethReserve);
+        // Token reserve
+        token.mint(address(exchange), tokenReserve);
+        _;
+    }
+
     //////////////////////////
     //    getInputPrice     //
     //////////////////////////
@@ -44,17 +52,24 @@ contract UniswapV1ExchangeUnitTest is Test {
         exchange.getInputPrice(1 ether, 0, 0);
     }
 
+    ////////////////////////////////////
+    //    getEthToTokenInputPrice     //
+    ////////////////////////////////////
+    function testGetEthToTokenInputPrice() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 ethSold = 1 ether;
+        uint256 expectedTokensBought = exchange.getInputPrice(ethSold, 10 ether, 1_000 ether);
+        uint256 actualTokensBought = exchange.getEthToTokenInputPrice(ethSold);
+        assertEq(actualTokensBought, expectedTokensBought);
+    }
+
+    function testGetEthToTokenInputPriceRevertsWithZeroEthSold() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthSoldIsZero.selector);
+        exchange.getEthToTokenInputPrice(0);
+    }
+
     ///////////////////////////////
     //    ethToTokenSwapInput    //
     ///////////////////////////////
-    modifier withLiquidity(uint256 ethReserve, uint256 tokenReserve) {
-        // ETH reserve
-        deal(address(exchange), ethReserve);
-        // Token reserve
-        token.mint(address(exchange), tokenReserve);
-        _;
-    }
-
     function testCanSwapEthForTokens() external withLiquidity(10 ether, 1_000 ether) {
         uint256 ethReserve = 10 ether;
         uint256 tokenReserve = 1_000 ether;
@@ -74,7 +89,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         assertEq(token.balanceOf(user), actualTokensBought);
     }
 
-    function testRevertsWithZeroEthSold() external {
+    function testSwapInputRevertsWithZeroEthSold() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthSoldIsZero.selector);
         exchange.ethToTokenSwapInput{value: 0}(1, block.timestamp);
     }
@@ -84,7 +99,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         exchange.ethToTokenSwapInput{value: 1 ether}(0, block.timestamp);
     }
 
-    function testRevertsIfMinTokensTooHigh() external withLiquidity(10 ether, 1_000 ether) {
+    function testSwapInputRevertsIfMinTokensTooHigh() external withLiquidity(10 ether, 1_000 ether) {
         uint256 ethSold = 1 ether;
 
         uint256 tokensBought = exchange.getEthToTokenInputPrice(ethSold);
@@ -93,7 +108,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         exchange.ethToTokenSwapInput{value: ethSold}(tokensBought + 1, block.timestamp);
     }
 
-    function testRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
+    function testSwapInputRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
         exchange.ethToTokenSwapInput{value: 1 ether}(1, block.timestamp - 1);
     }
@@ -121,7 +136,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         assertEq(token.balanceOf(alice), tokensBought);
     }
 
-    function testRevertsOnInvalidReceiver() external withLiquidity(10 ether, 1_000 ether) {
+    function testEthToTokenTransferInputRevertsOnInvalidReceiver() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
         exchange.ethToTokenTransferInput{value: 1 ether}(1, block.timestamp, address(exchange));
 
@@ -151,5 +166,121 @@ contract UniswapV1ExchangeUnitTest is Test {
     function testGetOutputPriceRevertsWhenOutputAmountExceedsReserve() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve.selector);
         exchange.getOutputPrice(1_000 ether, 10 ether, 1_000 ether);
+    }
+
+    ////////////////////////////////////
+    //    getEthToTokenOutputPrice    //
+    ////////////////////////////////////
+    function testGetEthToTokenOutputPrice() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensBought = 100 ether;
+        uint256 expectedEthSold = exchange.getOutputPrice(tokensBought, 10 ether, 1_000 ether);
+        uint256 actualEthSold = exchange.getEthToTokenOutputPrice(tokensBought);
+        assertEq(actualEthSold, expectedEthSold);
+    }
+
+    function testGetEthToTokenOutputPriceRevertsWithZeroTokensBought() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensBoughtIsZero.selector);
+        exchange.getEthToTokenOutputPrice(0);
+    }
+
+    ////////////////////////////////
+    //    ethToTokenSwapOutput    //
+    ////////////////////////////////
+    function testCanSwapEthForExactTokens() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 ethReserve = 10 ether;
+        uint256 tokenReserve = 1_000 ether;
+        uint256 tokensBought = 100 ether;
+
+        uint256 ethSold = exchange.getEthToTokenOutputPrice(tokensBought);
+
+        deal(user, ethSold);
+
+        vm.prank(user);
+        uint256 actualEthSold = exchange.ethToTokenSwapOutput{value: ethSold}(tokensBought, block.timestamp);
+
+        assertEq(actualEthSold, ethSold);
+        assertEq(token.balanceOf(user), tokensBought);
+        assertEq(token.balanceOf(address(exchange)), tokenReserve - tokensBought);
+        assertEq(address(user).balance, 0);
+        assertEq(address(exchange).balance, ethReserve + ethSold);
+    }
+
+    function testSwapOutputRefundsUnusedEth() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensBought = 100 ether;
+
+        uint256 ethSold = exchange.getEthToTokenOutputPrice(tokensBought);
+        uint256 maxEth = ethSold + 1 ether;
+
+        deal(user, maxEth);
+
+        vm.prank(user);
+        exchange.ethToTokenSwapOutput{value: maxEth}(tokensBought, block.timestamp);
+
+        assertEq(address(user).balance, 1 ether);
+    }
+
+    function testRevertsIfEthSoldExceedsMaxEth() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensBought = 100 ether;
+
+        uint256 ethSold = exchange.getEthToTokenOutputPrice(tokensBought);
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthSoldExceedsMaxEth.selector);
+        exchange.ethToTokenSwapOutput{value: ethSold - 1}(tokensBought, block.timestamp);
+    }
+
+    function testSwapOutputRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
+        exchange.ethToTokenSwapOutput{value: 1 ether}(100 ether, block.timestamp - 1);
+    }
+
+    function testSwapOutputRevertsWithZeroTokensBought() external withLiquidity(10 ether, 1_000 ether) {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensBoughtIsZero.selector);
+        exchange.ethToTokenSwapOutput{value: 1 ether}(0, block.timestamp);
+    }
+
+    ////////////////////////////////////
+    //    ethToTokenTransferOutput    //
+    ///////////////////////////////////
+    function testCanSwapEthForExactTokensAndTransferToRecipient() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 ethReserve = 10 ether;
+        uint256 tokenReserve = 1_000 ether;
+        uint256 tokensBought = 100 ether;
+
+        uint256 ethSold = exchange.getEthToTokenOutputPrice(tokensBought);
+
+        deal(user, ethSold);
+
+        vm.prank(user);
+        uint256 actualEthSold = exchange.ethToTokenTransferOutput{value: ethSold}(tokensBought, block.timestamp, alice);
+
+        assertEq(actualEthSold, ethSold);
+        assertEq(token.balanceOf(alice), tokensBought);
+        assertEq(token.balanceOf(user), 0);
+        assertEq(token.balanceOf(address(exchange)), tokenReserve - tokensBought);
+        assertEq(address(user).balance, 0);
+        assertEq(address(exchange).balance, ethReserve + ethSold);
+    }
+
+    function testTransferOutputRefundsUnusedEth() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensBought = 100 ether;
+
+        uint256 ethSold = exchange.getEthToTokenOutputPrice(tokensBought);
+        uint256 maxEth = ethSold + 1 ether;
+
+        deal(user, maxEth);
+
+        vm.prank(user);
+        exchange.ethToTokenTransferOutput{value: maxEth}(tokensBought, block.timestamp, alice);
+
+        assertEq(address(user).balance, 1 ether);
+        assertEq(token.balanceOf(alice), tokensBought);
+    }
+
+    function testTransferOutputRevertsOnInvalidRecipient() external withLiquidity(10 ether, 1_000 ether) {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
+        exchange.ethToTokenTransferOutput{value: 1 ether}(100 ether, block.timestamp, address(exchange));
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
+        exchange.ethToTokenTransferOutput{value: 1 ether}(100 ether, block.timestamp, address(0));
     }
 }

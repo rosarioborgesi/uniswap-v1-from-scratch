@@ -43,7 +43,7 @@ contract UniswapV1Exchange {
     error UniswapV1Exchange__TokensBoughtIsZero();
     error UniswapV1Exchange__MaxEthIsZero();
     error UniswapV1Exchange__EthSoldExceedsMaxEth();
-    error UniswapV1Exchange__EthTransferFailed(address, recipient, uint256 amount);
+    error UniswapV1Exchange__EthTransferFailed(address recipient, uint256 amount);
 
     ////////////////////////////////
     //      State Variables       //
@@ -109,6 +109,36 @@ contract UniswapV1Exchange {
             revert UniswapV1Exchange__InvalidRecipient();
         }
         return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, _recipient);
+    }
+
+    /**
+     * @notice Converts ETH to an exact amount of tokens.
+     * @dev User specifies maximum ETH input with msg.value and exact token output.
+     * @param _tokensBought Amount of tokens bought.
+     * @param _deadline Timestamp after which the transaction can no longer be executed.
+     * @return Amount of ETH sold.
+     */
+    function ethToTokenSwapOutput(uint256 _tokensBought, uint256 _deadline) public payable returns (uint256) {
+        return _ethToTokenOutput(_tokensBought, msg.value, _deadline, msg.sender, msg.sender);
+    }
+
+    /**
+     * @notice Converts ETH to an exact amount of tokens and transfers tokens to recipient.
+     * @dev User specifies maximum ETH input with msg.value and exact token output.
+     * @param _tokensBought Amount of tokens bought.
+     * @param _deadline Timestamp after which the transaction can no longer be executed.
+     * @param _recipient Address receiving output tokens.
+     * @return Amount of ETH sold.
+     */
+    function ethToTokenTransferOutput(uint256 _tokensBought, uint256 _deadline, address _recipient)
+        public
+        payable
+        returns (uint256)
+    {
+        if (_recipient == address(this) || _recipient == address(0)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        return _ethToTokenOutput(_tokensBought, msg.value, _deadline, msg.sender, _recipient);
     }
 
     /////////////////////////////////
@@ -199,8 +229,13 @@ contract UniswapV1Exchange {
         }
 
         uint256 tokenReserve = i_token.balanceOf(address(this));
+        // msg.value is already included in address(this).balance.
+        // Since _ethSold = msg.value, subtracting _ethSold gives the ETH reserve
+        // before the swap and can never underflow.
         uint256 ethReserveBeforeSwap = address(this).balance - _ethSold;
-
+        // The AMM formula guarantees that tokensBought is always lower than
+        // the token reserve, so the exchange can never send more tokens
+        // than it owns.
         uint256 tokensBought = _getInputPrice(_ethSold, ethReserveBeforeSwap, tokenReserve);
 
         // Slippage protection
@@ -246,8 +281,12 @@ contract UniswapV1Exchange {
         }
 
         uint256 tokenReserve = i_token.balanceOf(address(this));
+        // msg.value is already included in address(this).balance.
+        // Since _maxEth = msg.value, subtracting _maxEth gives the ETH reserve
+        // before the swap and can never underflow.
         uint256 ethReserve = address(this).balance - _maxEth;
-
+        // _getOutputPrice requires _tokensBought < tokenReserve,
+        // so the exchange cannot sell more tokens than it owns.
         uint256 ethSold = _getOutputPrice(_tokensBought, ethReserve, tokenReserve);
 
         // Slippage protection
@@ -310,5 +349,20 @@ contract UniswapV1Exchange {
         returns (uint256)
     {
         return _getOutputPrice(_outputAmount, _inputReserve, _outputReserve);
+    }
+
+    /**
+     * @notice Public price function for ETH to Token trades with an exact output.
+     * @param _tokensBought Amount of Tokens bought.
+     * @return Amount of ETH needed to buy output Tokens.
+     */
+    function getEthToTokenOutputPrice(uint256 _tokensBought) public view returns (uint256) {
+        if (_tokensBought == 0) {
+            revert UniswapV1Exchange__TokensBoughtIsZero();
+        }
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+        uint256 ethSold = _getOutputPrice(_tokensBought, ethReserve, tokenReserve);
+        return ethSold;
     }
 }
