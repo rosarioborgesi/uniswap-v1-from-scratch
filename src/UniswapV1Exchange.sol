@@ -23,9 +23,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {ERC20, IERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 
-contract UniswapV1Exchange {
+contract UniswapV1Exchange is ERC20 {
     ////////////////////////////////
     //            Errors          //
     ////////////////////////////////
@@ -36,14 +36,19 @@ contract UniswapV1Exchange {
     error UniswapV1Exchange__DeadlineExpired();
     error UniswapV1Exchange__MinTokensIsZero();
     error UniswapV1Exchange__InsufficientOutputAmount();
-    error UniswapV1Exchange__TokenTransferFailed(address recipient, uint256 tokensBought);
+    error UniswapV1Exchange__TokenTransferFailed(address sender, address recipient, uint256 tokensBought);
     error UniswapV1Exchange__InvalidRecipient();
     error UniswapV1Exchange__OutputAmountIsZero();
     error UniswapV1Exchange__OutputAmountGreaterOrEqualThanOutputReserve();
     error UniswapV1Exchange__TokensBoughtIsZero();
     error UniswapV1Exchange__MaxEthIsZero();
     error UniswapV1Exchange__EthSoldExceedsMaxEth();
-    error UniswapV1Exchange__EthTransferFailed(address recipient, uint256 amount);
+    error UniswapV1Exchange__EthTransferFailed(address sender, address recipient, uint256 amount);
+    error UniswapV1Exchange__MaxTokensIsZero();
+    error UniswapV1Exchange__InsufficientEthAmount();
+    error UniswapV1Exchange__MinLiquidityIsZero();
+    error UniswapV1Exchange__MaxTokensExceeded();
+    error UniswapV1Exchange__InsufficientLiquidityMinted();
 
     ////////////////////////////////
     //      State Variables       //
@@ -54,11 +59,14 @@ contract UniswapV1Exchange {
     //           Events           //
     ////////////////////////////////
     event TokenPurchase(address indexed buyer, uint256 ethSold, uint256 tokensBought);
+    event AddLiquidity(address indexed provider, uint256 ethAmount, uint256 tokenAmount);
 
     ////////////////////////////////
     //          Functions         //
     ////////////////////////////////
-    constructor(address _tokenAddress) {
+    constructor(address _tokenAddress, string memory _lpTokenName, string memory _lpTokensSymbol)
+        ERC20(_lpTokenName, _lpTokensSymbol)
+    {
         if (_tokenAddress == address(0)) {
             revert UniswapV1Exchange__ZeroAddress();
         }
@@ -77,10 +85,69 @@ contract UniswapV1Exchange {
     ////////////////////////////////
     //     External Functions     //
     ////////////////////////////////
+    function addLiquidity(uint256 _minLiquidity, uint256 _maxTokens, uint256 _deadline)
+        external
+        payable
+        returns (uint256)
+    {
+        if (_deadline <= block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+        if (_maxTokens == 0) {
+            revert UniswapV1Exchange__MaxTokensIsZero();
+        }
+        if (msg.value == 0) {
+            revert UniswapV1Exchange__InsufficientEthAmount();
+        }
 
-    ////////////////////////////////
-    //       Public Functions     //
-    ////////////////////////////////
+        uint256 totalLiquidity = totalSupply();
+
+        if (totalLiquidity > 0) {
+            if (_minLiquidity == 0) {
+                revert UniswapV1Exchange__MinLiquidityIsZero();
+            }
+            uint256 ethReserve = address(this).balance - msg.value;
+            uint256 tokenReserve = i_token.balanceOf(address(this));
+            uint256 tokenAmount = msg.value * tokenReserve / ethReserve + 1;
+            uint256 liquidityMinted = msg.value * totalLiquidity / ethReserve;
+
+            if (_maxTokens < tokenAmount) {
+                revert UniswapV1Exchange__MaxTokensExceeded();
+            }
+            if (liquidityMinted < _minLiquidity) {
+                revert UniswapV1Exchange__InsufficientLiquidityMinted();
+            }
+
+            _mint(msg.sender, liquidityMinted);
+
+            bool success = i_token.transferFrom(msg.sender, address(this), tokenAmount);
+            if (!success) {
+                revert UniswapV1Exchange__TokenTransferFailed(msg.sender, address(this), tokenAmount);
+            }
+
+            emit AddLiquidity(msg.sender, msg.value, tokenAmount);
+
+            return liquidityMinted;
+        } else {
+            if (msg.value < 1_000_000_000) {
+                revert UniswapV1Exchange__InsufficientEthAmount();
+            }
+            uint256 tokenAmount = _maxTokens;
+            uint256 initialLiquidity = address(this).balance;
+
+            _mint(msg.sender, initialLiquidity);
+
+            bool success = i_token.transferFrom(msg.sender, address(this), tokenAmount);
+            if (!success) {
+                revert UniswapV1Exchange__TokenTransferFailed(msg.sender, address(this), tokenAmount);
+            }
+
+            emit AddLiquidity(msg.sender, msg.value, tokenAmount);
+
+            return initialLiquidity;
+        }
+    }
+
     /**
      * @notice Converts ETH to Tokens.
      * @dev User specifies exact input (msg.value) and minimum output.
@@ -88,9 +155,24 @@ contract UniswapV1Exchange {
      * @param _deadline Time after which this transaction can no longer be executed.
      * @return Amount of Tokens bought
      */
-    function ethToTokenSwapInput(uint256 _minTokens, uint256 _deadline) public payable returns (uint256) {
+    function ethToTokenSwapInput(uint256 _minTokens, uint256 _deadline) external payable returns (uint256) {
         return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, msg.sender);
     }
+
+    /**
+     * @notice Converts ETH to an exact amount of tokens.
+     * @dev User specifies maximum ETH input with msg.value and exact token output.
+     * @param _tokensBought Amount of tokens bought.
+     * @param _deadline Timestamp after which the transaction can no longer be executed.
+     * @return Amount of ETH sold.
+     */
+    function ethToTokenSwapOutput(uint256 _tokensBought, uint256 _deadline) public payable returns (uint256) {
+        return _ethToTokenOutput(_tokensBought, msg.value, _deadline, msg.sender, msg.sender);
+    }
+
+    ////////////////////////////////
+    //       Public Functions     //
+    ////////////////////////////////
 
     /**
      * @notice Converts ETH to tokens and transfers tokens to recipient.
@@ -109,17 +191,6 @@ contract UniswapV1Exchange {
             revert UniswapV1Exchange__InvalidRecipient();
         }
         return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, _recipient);
-    }
-
-    /**
-     * @notice Converts ETH to an exact amount of tokens.
-     * @dev User specifies maximum ETH input with msg.value and exact token output.
-     * @param _tokensBought Amount of tokens bought.
-     * @param _deadline Timestamp after which the transaction can no longer be executed.
-     * @return Amount of ETH sold.
-     */
-    function ethToTokenSwapOutput(uint256 _tokensBought, uint256 _deadline) public payable returns (uint256) {
-        return _ethToTokenOutput(_tokensBought, msg.value, _deadline, msg.sender, msg.sender);
     }
 
     /**
