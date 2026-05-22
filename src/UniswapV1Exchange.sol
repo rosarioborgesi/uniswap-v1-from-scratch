@@ -43,7 +43,7 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__TokensBoughtIsZero();
     error UniswapV1Exchange__MaxEthIsZero();
     error UniswapV1Exchange__EthSoldExceedsMaxEth();
-    error UniswapV1Exchange__EthTransferFailed(address sender, address recipient, uint256 amount);
+    error UniswapV1Exchange__EthTransferFailed(address recipient, uint256 amount);
     error UniswapV1Exchange__MaxTokensIsZero();
     error UniswapV1Exchange__InsufficientEthAmount();
     error UniswapV1Exchange__MinLiquidityIsZero();
@@ -85,6 +85,15 @@ contract UniswapV1Exchange is ERC20 {
     ////////////////////////////////
     //     External Functions     //
     ////////////////////////////////
+    /**
+     * @notice Deposits ETH and tokens into the pool and mints LP tokens.
+     * @dev If liquidity already exists, tokens are deposited at the current pool ratio.
+     *      If this is the first deposit, `_maxTokens` is used as the initial token amount.
+     * @param _minLiquidity Minimum amount of LP tokens the caller is willing to receive.
+     * @param _maxTokens Maximum amount of tokens the caller is willing to deposit.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @return Amount of LP tokens minted to the caller.
+     */
     function addLiquidity(uint256 _minLiquidity, uint256 _maxTokens, uint256 _deadline)
         external
         payable
@@ -108,7 +117,9 @@ contract UniswapV1Exchange is ERC20 {
             }
             uint256 ethReserve = address(this).balance - msg.value;
             uint256 tokenReserve = i_token.balanceOf(address(this));
+
             uint256 tokenAmount = msg.value * tokenReserve / ethReserve + 1;
+
             uint256 liquidityMinted = msg.value * totalLiquidity / ethReserve;
 
             if (_maxTokens < tokenAmount) {
@@ -259,7 +270,7 @@ contract UniswapV1Exchange is ERC20 {
 
         bool success = i_token.transfer(_recipient, tokensBought);
         if (!success) {
-            revert UniswapV1Exchange__TokenTransferFailed(_recipient, tokensBought);
+            revert UniswapV1Exchange__TokenTransferFailed(address(this), _recipient, tokensBought);
         }
 
         emit TokenPurchase(_buyer, _ethSold, tokensBought);
@@ -319,7 +330,7 @@ contract UniswapV1Exchange is ERC20 {
 
         bool tokenTransferSuccess = i_token.transfer(_recipient, _tokensBought);
         if (!tokenTransferSuccess) {
-            revert UniswapV1Exchange__TokenTransferFailed(_recipient, _tokensBought);
+            revert UniswapV1Exchange__TokenTransferFailed(address(this), _recipient, _tokensBought);
         }
 
         emit TokenPurchase(_buyer, ethSold, _tokensBought);

@@ -14,7 +14,7 @@ contract UniswapV1ExchangeUnitTest is Test {
 
     function setUp() external {
         token = new ERC20Mock();
-        exchange = new UniswapV1Exchange(address(token));
+        exchange = new UniswapV1Exchange(address(token), "Uniswap V1", "UNI-V1");
     }
 
     ///////////////////////
@@ -22,7 +22,7 @@ contract UniswapV1ExchangeUnitTest is Test {
     ///////////////////////
     function testRevertsIfTokenAddressIsZero() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__ZeroAddress.selector);
-        new UniswapV1Exchange(address(0));
+        new UniswapV1Exchange(address(0), "Uniswap V1", "UNI-V1");
     }
 
     modifier withLiquidity(uint256 ethReserve, uint256 tokenReserve) {

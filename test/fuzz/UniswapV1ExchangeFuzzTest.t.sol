@@ -11,7 +11,7 @@ contract UniswapV1ExchangeFuzzTest is Test {
 
     function setUp() external {
         token = new ERC20Mock();
-        exchange = new UniswapV1Exchange(address(token));
+        exchange = new UniswapV1Exchange(address(token), "Uniswap V1", "UNI-V1");
     }
 
     /////////////////////////
