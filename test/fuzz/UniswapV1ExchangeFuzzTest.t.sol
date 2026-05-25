@@ -19,7 +19,7 @@ contract UniswapV1ExchangeFuzzTest is Test {
     /////////////////////////
     //    getInputPrice    //
     /////////////////////////
-    function testGetInputPriceAlwaysMatchesAmmFormula(
+    function testFuzz_GetInputPriceAlwaysMatchesAmmFormula(
         uint256 _inputAmount,
         uint256 _inputReserve,
         uint256 _outputReserve
@@ -45,7 +45,7 @@ contract UniswapV1ExchangeFuzzTest is Test {
     //////////////////////////
     //    getOutputPrice    //
     //////////////////////////
-    function testGetOutputPriceAlwaysMatchesAMMFormula(
+    function testFuzz_GetOutputPriceAlwaysMatchesAMMFormula(
         uint256 _outputAmount,
         uint256 _inputReserve,
         uint256 _outputReserve
@@ -74,11 +74,11 @@ contract UniswapV1ExchangeFuzzTest is Test {
         assertEq(expectedOutputPrice, actualOutputPrice);
     }
 
-    //////////////////////////
+    ////////////////////////
     //    addLiquidity    //
-    //////////////////////////
+    ////////////////////////
     // Tests the invariant expectedLiquidity = (ethAmount * totalLiquidityBefore) / ethReserve;
-    function testAddLiquidityMintsCorrectLiquidity(uint256 _ethReserve, uint256 _tokenReserve, uint256 _ethAmount)
+    function testFuzz_AddLiquidityMintsCorrectLiquidity(uint256 _ethReserve, uint256 _tokenReserve, uint256 _ethAmount)
         external
     {
         // Reserves range from 1 ether to type(uint112).max to be realistic
@@ -126,7 +126,7 @@ contract UniswapV1ExchangeFuzzTest is Test {
     }
 
     // Tests that addLiquidity preserves the ETH/token reserve ratio
-    function testAddLiquidityPreservesReserveRatio(uint256 _ethReserve, uint256 _tokenReserve, uint256 _ethAmount)
+    function testFuzz_AddLiquidityPreservesReserveRatio(uint256 _ethReserve, uint256 _tokenReserve, uint256 _ethAmount)
         external
     {
         // Reserves range from 1 ether to type(uint112).max to be realistic
@@ -162,5 +162,77 @@ contract UniswapV1ExchangeFuzzTest is Test {
         uint256 newTokenReserve = token.balanceOf(address(exchange));
 
         assertApproxEqAbs((newEthReserve * 1e18) / newTokenReserve, (_ethReserve * 1e18) / _tokenReserve, 0.006 ether);
+    }
+
+    ///////////////////////////
+    //    removeLiquidity    //
+    ///////////////////////////
+    // Invariants:
+    //   - ethAmount = liquidityBurned * ethReserve / totalLiquidity
+    //   - tokenAmount = liquidityBurned * tokenReserve / totalLiquidity
+    function testFuzz_RemoveLiquidityReturnsProportionalReserves(
+        uint256 _ethReserve,
+        uint256 _tokenReserve,
+        uint256 _liquidityToBurn
+    ) external {
+        _ethReserve = bound(_ethReserve, 1 ether, type(uint112).max);
+        _tokenReserve = bound(_tokenReserve, 1 ether, type(uint112).max);
+        _liquidityToBurn = bound(_liquidityToBurn, 1, _ethReserve);
+
+        deal(address(token), user, _tokenReserve);
+        deal(user, _ethReserve);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), _tokenReserve);
+
+        exchange.addLiquidity{value: _ethReserve}(0, _tokenReserve, block.timestamp + 1);
+
+        uint256 totalLiquidity = exchange.totalSupply();
+
+        uint256 expectedEthAmount = (_liquidityToBurn * _ethReserve) / totalLiquidity;
+
+        uint256 expectedTokenAmount = (_liquidityToBurn * _tokenReserve) / totalLiquidity;
+
+        (uint256 ethAmount, uint256 tokenAmount) = exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+
+        vm.stopPrank();
+
+        assertEq(ethAmount, expectedEthAmount);
+        assertEq(tokenAmount, expectedTokenAmount);
+    }
+
+    // Invariants:
+    //  - totalSupply decreases by liquidityBurned
+    //  - pool reserves decrease by the withdrawn amounts
+    function testFuzz_RemoveLiquidityUpdatesReservesAndLpSupply(
+        uint256 _ethReserve,
+        uint256 _tokenReserve,
+        uint256 _liquidityToBurn
+    ) external {
+        _ethReserve = bound(_ethReserve, 1 ether, type(uint112).max);
+        _tokenReserve = bound(_tokenReserve, 1 ether, type(uint112).max);
+        _liquidityToBurn = bound(_liquidityToBurn, 1, _ethReserve);
+
+        deal(address(token), user, _tokenReserve);
+        deal(user, _ethReserve);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), _tokenReserve);
+
+        exchange.addLiquidity{value: _ethReserve}(0, _tokenReserve, block.timestamp + 1);
+
+        uint256 totalLiquidityBefore = exchange.totalSupply();
+
+        uint256 expectedEthAmount = (_liquidityToBurn * _ethReserve) / totalLiquidityBefore;
+
+        uint256 expectedTokenAmount = (_liquidityToBurn * _tokenReserve) / totalLiquidityBefore;
+
+        exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+
+        vm.stopPrank();
+
+        assertEq(exchange.totalSupply(), totalLiquidityBefore - _liquidityToBurn);
+        assertEq(address(exchange).balance, _ethReserve - expectedEthAmount);
+        assertEq(token.balanceOf(address(exchange)), _tokenReserve - expectedTokenAmount);
     }
 }
