@@ -320,32 +320,6 @@ contract UniswapV1ExchangeUnitTest is Test {
         assertEq(token.balanceOf(address(exchange)), tokenAmount);
     }
 
-    function testAddLiquiditySecondProviderMintsProportionalLiquidity() external addLiquidity(10 ether, 20_000 ether) {
-        // First LP
-        uint256 ethAmountLp1 = 10 ether;
-        //uint256 tokenAmountLp1 = 20_000 ether;
-
-        // Second LP
-        uint256 ethAmountLp2 = 1 ether;
-        uint256 tokenAmountLp2 = 5_000 ether;
-        deal(alice, ethAmountLp2);
-        deal(address(token), alice, tokenAmountLp2);
-
-        vm.startPrank(alice);
-        token.approve(address(exchange), tokenAmountLp2);
-        uint256 liquidityMinted =
-            exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp + 1);
-        vm.stopPrank();
-
-        assertEq(liquidityMinted, ethAmountLp2);
-        assertEq(exchange.totalSupply(), ethAmountLp1 + ethAmountLp2);
-        assertEq(exchange.balanceOf(alice), ethAmountLp2);
-
-        // Token amount LP 2 = tokenAmount = msg.value * tokenReserve / ethReserve + 1 = (1 * 20_000 / 10) + 1
-        // Total token amount = Token Amount LP 1 + token amount LP 2 = 2_000 + 1 + 20_000 = 22_000 + 1
-        assertEq(token.balanceOf(address(exchange)), 22_000 ether + 1);
-    }
-
     function testAddLiquidityRevertsIfDeadlineExpired() external {
         uint256 ethAmount = 10 ether;
         uint256 tokenAmount = 20_000 ether;
@@ -376,7 +350,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         vm.stopPrank();
     }
 
-    function testAddLiquidityRevertsIfEthAmountIsZero() external {
+    function testAddLiquidityRevertsIfMsgValueIsZero() external {
         uint256 ethAmount = 10 ether;
         uint256 tokenAmount = 20_000 ether;
 
@@ -390,13 +364,40 @@ contract UniswapV1ExchangeUnitTest is Test {
         exchange.addLiquidity(ethAmount, tokenAmount, block.timestamp + 1);
         vm.stopPrank();
     }
+    
+    function testAddLiquiditySecondProviderMintsProportionalLiquidity() external addLiquidity(10 ether, 20_000 ether) {
+        // First LP
+        uint256 ethAmountLp1 = 10 ether;
+        //uint256 tokenAmountLp1 = 20_000 ether;
 
-    function testAddLiquidityRevertsIfMinLiquidityIsZeroAfterPoolExists()
+        // Second LP
+        uint256 ethAmountLp2 = 1 ether;
+        uint256 tokenAmountLp2 = 5_000 ether;
+        deal(alice, ethAmountLp2);
+        deal(address(token), alice, tokenAmountLp2);
+
+        vm.startPrank(alice);
+        token.approve(address(exchange), tokenAmountLp2);
+        uint256 liquidityMinted =
+            exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp + 1);
+        vm.stopPrank();
+
+        assertEq(liquidityMinted, ethAmountLp2);
+        assertEq(exchange.totalSupply(), ethAmountLp1 + ethAmountLp2);
+        assertEq(exchange.balanceOf(user), ethAmountLp1);
+        assertEq(exchange.balanceOf(alice), ethAmountLp2);
+        assertEq(address(exchange).balance, ethAmountLp1 + ethAmountLp2);
+        // Token amount LP 2 = tokenAmount = msg.value * tokenReserve / ethReserve + 1 = (1 * 20_000 / 10) + 1
+        // Total token amount = Token Amount LP 1 + token amount LP 2 = 2_000 + 1 + 20_000 = 22_000 + 1
+        assertEq(token.balanceOf(address(exchange)), 22_000 ether + 1);
+    }
+
+    function testAddLiquiditySecondProviderRevertsIfMinLiquidityIsZero()
         external
         addLiquidity(10 ether, 20_000 ether)
     {
         // First LP
-        uint256 ethAmountLp1 = 10 ether;
+        //uint256 ethAmountLp1 = 10 ether;
         //uint256 tokenAmountLp1 = 20_000 ether;
 
         // Second LP
@@ -413,7 +414,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         vm.stopPrank();
     }
 
-    function testAddLiquidityRevertsIfMaxTokensExceeded() external addLiquidity(10 ether, 20_000 ether) {
+    function testAddLiquiditySecondProviderRevertsIfMaxTokensExceeded() external addLiquidity(10 ether, 20_000 ether) {
         // First LP
         //uint256 ethAmountLp1 = 10 ether;
         //uint256 tokenAmountLp1 = 20_000 ether;
@@ -431,7 +432,29 @@ contract UniswapV1ExchangeUnitTest is Test {
         // _maxTokens = tokenAmountLp2 = 2_000
         // tokenAmount = msg.value * tokenReserve / ethReserve + 1 = 1 * 20_000 / 10 + 1 = 2_001
         // _maxTokens < tokenAmount because 2_000 < 2_001
-        exchange.addLiquidity{value: ethAmountLp2}(tokenAmountLp2, tokenAmountLp2, block.timestamp + 1);
+        exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp + 1);
+        vm.stopPrank();
+    }
+
+    function testAddLiquiditySecondProviderRevertsIfInsufficientLiquidityMinted() external addLiquidity(10 ether, 20_000 ether) {
+        // Second LP
+        uint256 ethAmountLp2 = 1 ether;
+        uint256 tokenAmountLp2 = 5_000 ether;
+
+        deal(alice, ethAmountLp2);
+        deal(address(token), alice, tokenAmountLp2);
+
+        vm.startPrank(alice);
+
+        token.approve(address(exchange), tokenAmountLp2);
+
+        // Expected liquidity minted:
+        // liquidityMinted = (1 * 10) / 10 = 1 ether
+        // So requesting more than 1 ether should revert
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientLiquidityMinted.selector);
+        exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2 + 1, tokenAmountLp2, block.timestamp + 1);
+
         vm.stopPrank();
     }
 
