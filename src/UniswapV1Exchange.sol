@@ -49,6 +49,11 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__MinLiquidityIsZero();
     error UniswapV1Exchange__MaxTokensExceeded();
     error UniswapV1Exchange__InsufficientLiquidityMinted();
+    error UniswapV1Exchange__AmountIsZero();
+    error UniswapV1Exchange__MinEthIsZero();
+    error UniswapV1Exchange__TotalLiquidityIsZero();
+    error UniswapV1Exchange__InsufficientEthWithdrawn();
+    error UniswapV1Exchange__InsufficientTokensWithdrawn();
 
     ////////////////////////////////
     //      State Variables       //
@@ -60,6 +65,7 @@ contract UniswapV1Exchange is ERC20 {
     ////////////////////////////////
     event TokenPurchase(address indexed buyer, uint256 ethSold, uint256 tokensBought);
     event AddLiquidity(address indexed provider, uint256 ethAmount, uint256 tokenAmount);
+    event RemoveLiquidity(address indexed provider, uint256 ethAmount, uint256 tokenAmount);
 
     ////////////////////////////////
     //          Functions         //
@@ -157,6 +163,74 @@ contract UniswapV1Exchange is ERC20 {
 
             return initialLiquidity;
         }
+    }
+
+    /**
+     * @notice Burns LP tokens and withdraws the caller's proportional share of ETH and tokens.
+     * @dev Calculates ETH and token amounts based on the caller's LP token share over total liquidity.
+     *      Reverts if the deadline expired or if the withdrawn amounts are lower than the minimums.
+     * @param _amount Amount of LP tokens to burn.
+     * @param _minEth Minimum amount of ETH the caller is willing to receive.
+     * @param _minTokens Minimum amount of tokens the caller is willing to receive.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @return ethAmount Amount of ETH withdrawn.
+     * @return tokenAmount Amount of tokens withdrawn.
+     */
+    function removeLiquidity(uint256 _amount, uint256 _minEth, uint256 _minTokens, uint256 _deadline)
+        external
+        returns (uint256 ethAmount, uint256 tokenAmount)
+    {
+        if (_amount == 0) {
+            revert UniswapV1Exchange__AmountIsZero();
+        }
+
+        if (_deadline <= block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+
+        if (_minEth == 0) {
+            revert UniswapV1Exchange__MinEthIsZero();
+        }
+
+        if (_minTokens == 0) {
+            revert UniswapV1Exchange__MinTokensIsZero();
+        }
+
+        uint256 totalLiquidity = totalSupply();
+
+        if (totalLiquidity == 0) {
+            revert UniswapV1Exchange__TotalLiquidityIsZero();
+        }
+
+        uint256 ethReserve = address(this).balance;
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+
+        ethAmount = (_amount * ethReserve) / totalLiquidity;
+        tokenAmount = (_amount * tokenReserve) / totalLiquidity;
+
+        if (_minEth > ethAmount) {
+            revert UniswapV1Exchange__InsufficientEthWithdrawn();
+        }
+
+        if (_minTokens > tokenAmount) {
+            revert UniswapV1Exchange__InsufficientTokensWithdrawn();
+        }
+
+        _burn(msg.sender, _amount);
+
+        (bool ethSent,) = msg.sender.call{value: ethAmount}("");
+        if (!ethSent) {
+            revert UniswapV1Exchange__EthTransferFailed(msg.sender, ethAmount);
+        }
+
+        bool tokenSent = i_token.transfer(msg.sender, tokenAmount);
+        if (!tokenSent) {
+            revert UniswapV1Exchange__TokenTransferFailed(address(this), msg.sender, tokenAmount);
+        }
+
+        emit RemoveLiquidity(msg.sender, ethAmount, tokenAmount);
+
+        return (ethAmount, tokenAmount);
     }
 
     /**

@@ -364,7 +364,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         exchange.addLiquidity(ethAmount, tokenAmount, block.timestamp + 1);
         vm.stopPrank();
     }
-    
+
     function testAddLiquiditySecondProviderMintsProportionalLiquidity() external addLiquidity(10 ether, 20_000 ether) {
         // First LP
         uint256 ethAmountLp1 = 10 ether;
@@ -392,10 +392,7 @@ contract UniswapV1ExchangeUnitTest is Test {
         assertEq(token.balanceOf(address(exchange)), 22_000 ether + 1);
     }
 
-    function testAddLiquiditySecondProviderRevertsIfMinLiquidityIsZero()
-        external
-        addLiquidity(10 ether, 20_000 ether)
-    {
+    function testAddLiquiditySecondProviderRevertsIfMinLiquidityIsZero() external addLiquidity(10 ether, 20_000 ether) {
         // First LP
         //uint256 ethAmountLp1 = 10 ether;
         //uint256 tokenAmountLp1 = 20_000 ether;
@@ -436,7 +433,10 @@ contract UniswapV1ExchangeUnitTest is Test {
         vm.stopPrank();
     }
 
-    function testAddLiquiditySecondProviderRevertsIfInsufficientLiquidityMinted() external addLiquidity(10 ether, 20_000 ether) {
+    function testAddLiquiditySecondProviderRevertsIfInsufficientLiquidityMinted()
+        external
+        addLiquidity(10 ether, 20_000 ether)
+    {
         // Second LP
         uint256 ethAmountLp2 = 1 ether;
         uint256 tokenAmountLp2 = 5_000 ether;
