@@ -568,4 +568,19 @@ contract UniswapV1ExchangeUnitTest is Test {
         exchange.removeLiquidity(userLiquidity + 1, 1, 1, block.timestamp + 1);
         vm.stopPrank();
     }
+
+    ////////////////////////////////////
+    //    getTokenToEthInputPrice     //
+    ////////////////////////////////////
+    function test_GetTokenToEthInputPrice() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensSold = 1_000 ether;
+        uint256 expectedEthBought = exchange.getInputPrice(tokensSold, 1_000 ether, 10 ether);
+        uint256 actualEthBought = exchange.getTokenToEthInputPrice(tokensSold);
+        assertEq(actualEthBought, expectedEthBought);
+    }
+
+    function test_GetTokenToEthInputPriceRevertsWithZeroTokensSold() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensSoldIsZero.selector);
+        exchange.getTokenToEthInputPrice(0);
+    }
 }

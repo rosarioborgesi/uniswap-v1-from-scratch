@@ -54,6 +54,7 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__TotalLiquidityIsZero();
     error UniswapV1Exchange__InsufficientEthWithdrawn();
     error UniswapV1Exchange__InsufficientTokensWithdrawn();
+    error UniswapV1Exchange__TokensSoldIsZero();
 
     ////////////////////////////////
     //      State Variables       //
@@ -518,7 +519,21 @@ contract UniswapV1Exchange is ERC20 {
         }
         uint256 tokenReserve = i_token.balanceOf(address(this));
         uint256 ethReserve = address(this).balance;
-        uint256 ethSold = _getOutputPrice(_tokensBought, ethReserve, tokenReserve);
-        return ethSold;
+        return _getOutputPrice(_tokensBought, ethReserve, tokenReserve);
+    }
+
+    /**
+     * @notice Public price function for Token to ETH trades with an exact input
+     * @param _tokensSold Amount of Tokens sold.
+     * @return Amount of ETH that can be bought with input Tokens.
+     */
+    function getTokenToEthInputPrice(uint256 _tokensSold) public view returns (uint256) {
+        if (_tokensSold == 0) {
+            revert UniswapV1Exchange__TokensSoldIsZero();
+        }
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+
+        return _getInputPrice(_tokensSold, tokenReserve, ethReserve);
     }
 }

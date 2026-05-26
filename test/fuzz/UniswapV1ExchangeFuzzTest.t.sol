@@ -26,9 +26,7 @@ contract UniswapV1ExchangeFuzzTest is Test {
     ) external view {
         // Bound values to uint112 because Uniswap reserves historically fit into uint112.
         // This also avoids unrealistic overflow scenarios during fuzzing.
-
         // _inputAmount, _inputReserve, and _outputReserve cannot be zero.
-
         _inputAmount = bound(_inputAmount, 1, type(uint112).max);
         _inputReserve = bound(_inputReserve, 1, type(uint112).max);
         _outputReserve = bound(_outputReserve, 1, type(uint112).max);
@@ -193,12 +191,18 @@ contract UniswapV1ExchangeFuzzTest is Test {
 
         uint256 expectedTokenAmount = (_liquidityToBurn * _tokenReserve) / totalLiquidity;
 
-        (uint256 ethAmount, uint256 tokenAmount) = exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+        if (expectedTokenAmount == 0) {
+            vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientTokensWithdrawn.selector);
+            exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+        } else {
+            (uint256 ethAmount, uint256 tokenAmount) =
+                exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+
+            assertEq(ethAmount, expectedEthAmount);
+            assertEq(tokenAmount, expectedTokenAmount);
+        }
 
         vm.stopPrank();
-
-        assertEq(ethAmount, expectedEthAmount);
-        assertEq(tokenAmount, expectedTokenAmount);
     }
 
     // Invariants:
@@ -227,12 +231,16 @@ contract UniswapV1ExchangeFuzzTest is Test {
 
         uint256 expectedTokenAmount = (_liquidityToBurn * _tokenReserve) / totalLiquidityBefore;
 
-        exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+        if (expectedTokenAmount == 0) {
+            vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientTokensWithdrawn.selector);
+            exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
+        } else {
+            exchange.removeLiquidity(_liquidityToBurn, 1, 1, block.timestamp + 1);
 
+            assertEq(exchange.totalSupply(), totalLiquidityBefore - _liquidityToBurn);
+            assertEq(address(exchange).balance, _ethReserve - expectedEthAmount);
+            assertEq(token.balanceOf(address(exchange)), _tokenReserve - expectedTokenAmount);
+        }
         vm.stopPrank();
-
-        assertEq(exchange.totalSupply(), totalLiquidityBefore - _liquidityToBurn);
-        assertEq(address(exchange).balance, _ethReserve - expectedEthAmount);
-        assertEq(token.balanceOf(address(exchange)), _tokenReserve - expectedTokenAmount);
     }
 }
