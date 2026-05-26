@@ -396,6 +396,45 @@ The implementation order will be:
 
 We have already implemented this function. Check [04-eth-to-token-swap.md](./04-eth-to-token-swap.md).
 
+In this chapter we do not need to write a new pricing formula, because `_getInputPrice()` is asset-agnostic.
+
+It does not know whether the input asset is ETH or an ERC20 token.
+It only needs three values:
+
+```solidity
+_getInputPrice(
+    inputAmount,
+    inputReserve,
+    outputReserve
+);
+```
+
+For any exact-input swap:
+
+- `inputAmount` is the amount the user sells
+- `inputReserve` is the pool reserve of the asset the user sells
+- `outputReserve` is the pool reserve of the asset the user receives
+
+The function then applies the constant product formula with the 0.3% Uniswap V1 fee:
+
+```solidity
+uint256 inputAmountWithFee = _inputAmount * 997;
+uint256 numerator = inputAmountWithFee * _outputReserve;
+uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
+
+return numerator / denominator;
+```
+
+So for Token → ETH swaps, the function calculates:
+
+```text
+How much ETH should the user receive
+for this exact amount of tokens sold?
+```
+
+The important idea is that `_getInputPrice()` is shared AMM math.
+The swap direction is decided only by which reserves we pass into it.
+
 # getTokenToEthInputPrice()
 
 Internally, `getTokenToEthInputPrice()` reuses the `_getInputPrice()` function that we already implemented for ETH → Token swaps.
@@ -412,3 +451,382 @@ _getInputPrice(
 );
 ```
 
+Here:
+
+- `tokensSold` is the exact token amount
+- `tokenReserve` is the token reserve
+- `ethReserve` is the ETH reserve
+
+
+For example, if the pool has:
+
+```text
+tokenReserve = 20,000 DAI
+ethReserve   = 10 ETH
+tokensSold   = 1,000 DAI
+```
+
+then the quote is calculated as:
+
+```solidity
+getTokenToEthInputPrice(1000 ether);
+```
+
+which internally becomes:
+
+```solidity
+_getInputPrice(
+    1000 ether,
+    20_000 ether,
+    10 ether
+);
+```
+
+Because the input reserve is the token reserve and the output reserve is the ETH reserve, the return value is denominated in ETH.
+
+
+# _tokenToEthInput()
+
+The core Token → ETH swap logic is implemented inside:
+
+```solidity
+_tokenToEthInput()
+```
+
+This internal function is shared by:
+
+```solidity
+tokenToEthSwapInput()
+tokenToEthTransferInput()
+```
+
+The function receives:
+
+```text
+tokens sold
+minimum ETH accepted
+deadline
+buyer address
+recipient address
+```
+
+Its responsibilities are:
+
+```text
+validate inputs
+read reserves
+calculate ETH output
+check slippage protection
+send ETH to the recipient
+transfer tokens from the buyer
+emit the swap event
+```
+
+---
+
+## Reserve calculation
+
+The function reads the reserves from the exchange:
+
+```solidity
+uint256 tokenReserve = i_token.balanceOf(address(this));
+uint256 ethReserve = address(this).balance;
+```
+
+For a Token → ETH swap:
+
+```text
+input reserve  = token reserve
+output reserve = ETH reserve
+```
+
+The ETH output is calculated using:
+
+```solidity
+_getInputPrice(
+    _tokensSold,
+    tokenReserve,
+    ethReserve
+);
+```
+
+This reuses the same AMM pricing logic already implemented for ETH → Token swaps.
+
+---
+
+## Slippage protection
+
+The function calculates:
+
+```solidity
+uint256 ethBought
+```
+
+and verifies that the user receives at least:
+
+```solidity
+_minEth
+```
+
+```solidity
+if (_minEth > ethBought) {
+    revert UniswapV1Exchange__EthBoughtExceedsMinEth();
+}
+```
+
+This protects users from receiving less ETH than expected.
+
+---
+
+## ETH transfer
+
+After calculating the ETH output, the exchange sends ETH to the recipient:
+
+```solidity
+(bool successEthTransfer,) =
+    _recipient.call{value: ethBought}("");
+```
+
+If the ETH transfer fails, the transaction reverts.
+
+---
+
+## Token transfer
+
+The exchange then pulls tokens from the buyer using:
+
+```solidity
+i_token.transferFrom(
+    _buyer,
+    address(this),
+    _tokensSold
+);
+```
+
+The buyer must approve the exchange before executing the swap.
+
+Example:
+
+```solidity
+i_token.approve(address(exchange), tokensSold);
+```
+
+---
+
+
+# tokenToEthSwapInput()
+
+The external entry point for a Token → ETH swap is:
+
+```solidity
+tokenToEthSwapInput()
+```
+
+This function allows a user to sell an exact amount of ERC20 tokens and receive ETH directly.
+
+The function receives:
+
+```text
+tokens sold
+minimum ETH accepted
+deadline
+```
+
+Internally it delegates the swap execution to:
+
+```solidity
+_tokenToEthInput()
+```
+
+using:
+
+```solidity
+msg.sender
+```
+
+as both:
+
+```text
+buyer
+recipient
+```
+
+```solidity
+return _tokenToEthInput(
+    _tokensSold,
+    _minEth,
+    _deadline,
+    msg.sender,
+    msg.sender
+);
+```
+
+This means:
+
+```text
+the caller provides the tokens
+the caller receives the ETH
+```
+
+---
+
+## Responsibilities
+
+The function itself is intentionally small.
+
+Its purpose is to:
+
+```text
+expose the external swap interface
+forward the parameters
+define buyer and recipient
+reuse the shared internal swap logic
+```
+
+The actual swap execution is handled inside:
+
+```solidity
+_tokenToEthInput()
+```
+
+---
+
+## Example
+
+Suppose a user sells:
+
+```text
+1,000 DAI
+```
+
+by calling:
+
+```solidity
+tokenToEthSwapInput(
+    1000 ether,
+    minEth,
+    deadline
+);
+```
+
+The exchange:
+
+```text
+calculates ETH output
+sends ETH to the caller
+pulls DAI from the caller
+updates reserves
+```
+
+The caller receives ETH directly because:
+
+```text
+buyer = recipient = msg.sender
+```
+
+# tokenToEthSwapInput()
+
+The external entry point for a standard Token → ETH swap is:
+
+```solidity
+tokenToEthSwapInput()
+```
+
+This function allows a user to sell an exact amount of ERC20 tokens and receive ETH directly.
+
+Internally the function delegates the swap execution to:
+
+```solidity
+_tokenToEthInput()
+```
+
+using:
+
+```solidity
+msg.sender
+```
+
+as both:
+
+```text
+buyer
+recipient
+```
+
+```solidity
+return _tokenToEthInput(
+    _tokensSold,
+    _minEth,
+    _deadline,
+    msg.sender,
+    msg.sender
+);
+```
+
+This means:
+
+```text
+the caller provides the tokens
+the caller receives the ETH
+```
+
+The function itself is intentionally minimal and simply forwards the parameters to the shared internal swap logic.
+
+---
+
+# tokenToEthTransferInput()
+
+The exchange also exposes:
+
+```solidity
+tokenToEthTransferInput()
+```
+
+This function behaves similarly to:
+
+```solidity
+tokenToEthSwapInput()
+```
+
+but allows the ETH output to be sent to another address.
+
+Internally it calls:
+
+```solidity
+_tokenToEthInput()
+```
+
+using:
+
+```solidity
+msg.sender
+```
+
+as the buyer and:
+
+```solidity
+_recipient
+```
+
+as the ETH recipient.
+
+```solidity
+return _tokenToEthInput(
+    _tokensSold,
+    _minEth,
+    _deadline,
+    msg.sender,
+    _recipient
+);
+```
+
+This means:
+
+```text
+the caller provides the tokens
+another address receives the ETH
+```
+
+The swap pricing and execution logic remain exactly the same.
+
+The only difference between the two external functions is who receives the ETH output.
