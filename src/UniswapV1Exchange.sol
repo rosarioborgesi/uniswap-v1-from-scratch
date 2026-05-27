@@ -57,7 +57,7 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__TokensSoldIsZero();
     error UniswapV1Exchange__EthBoughtExceedsMinEth();
     error UniswapV1Exchange__EthBoughtIsZero();
-    error UniswapV1Exchange__TokenSoldExceedsMaxTokens();
+    error UniswapV1Exchange__TokensSoldExceedsMaxTokens();
 
     ////////////////////////////////
     //      State Variables       //
@@ -321,6 +321,9 @@ contract UniswapV1Exchange is ERC20 {
         external
         returns (uint256)
     {
+        if(_recipient == address(this) || _recipient == address(0)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
         return _tokenToEthOutput(_ethBought, _maxTokens, _deadline, msg.sender, _recipient);
     }
 
@@ -566,7 +569,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 tokensSold = _getOutputPrice(_ethBought, tokenReserve, ethReserve);
 
         if (_maxTokens < tokensSold) {
-            revert UniswapV1Exchange__TokenSoldExceedsMaxTokens();
+            revert UniswapV1Exchange__TokensSoldExceedsMaxTokens();
         }
 
         (bool ethTransferSuccess,) = _recipient.call{value: _ethBought}("");
