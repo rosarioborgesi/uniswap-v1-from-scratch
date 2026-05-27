@@ -583,4 +583,112 @@ contract UniswapV1ExchangeUnitTest is Test {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensSoldIsZero.selector);
         exchange.getTokenToEthInputPrice(0);
     }
+
+    ////////////////////////////////
+    //    tokenToEthSwapInput     //
+    ////////////////////////////////
+    function test_CanSwapTokensForEth() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 ethReserve = 10 ether;
+        uint256 tokenReserve = 1_000 ether;
+        uint256 tokensSold = 100 ether;
+
+        deal(address(token), user, tokensSold);
+
+        uint256 ethBought = exchange.getTokenToEthInputPrice(tokensSold);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), tokensSold);
+
+        uint256 actualEthBought = exchange.tokenToEthSwapInput(tokensSold, 1, block.timestamp + 1);
+
+        vm.stopPrank();
+
+        assertEq(actualEthBought, ethBought);
+        assertEq(address(exchange).balance, ethReserve - ethBought);
+        assertEq(address(user).balance, ethBought);
+        assertEq(token.balanceOf(address(exchange)), tokenReserve + tokensSold);
+        assertEq(token.balanceOf(user), 0);
+    }
+
+    function test_TokenToEthSwapInputRevertsWithZeroTokensSold() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensSoldIsZero.selector);
+        exchange.tokenToEthSwapInput(0, 1, block.timestamp + 1);
+    }
+
+    function test_TokenToEthSwapInputRevertsWithZeroMinEth() external {
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MinEthIsZero.selector);
+        exchange.tokenToEthSwapInput(1 ether, 0, block.timestamp + 1);
+    }
+
+    function test_TokenToEthSwapInputRevertsIfMinEthTooHigh() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensSold = 100 ether;
+        uint256 ethBought = exchange.getTokenToEthInputPrice(tokensSold);
+
+        deal(address(token), user, tokensSold);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), tokensSold);
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthBoughtExceedsMinEth.selector);
+        exchange.tokenToEthSwapInput(tokensSold, ethBought + 1, block.timestamp + 1);
+
+        vm.stopPrank();
+    }
+
+    function test_TokenToEthSwapInputRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensSold = 100 ether;
+
+        deal(address(token), user, tokensSold);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), tokensSold);
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
+        exchange.tokenToEthSwapInput(tokensSold, 1, block.timestamp - 1);
+
+        vm.stopPrank();
+    }
+
+    ////////////////////////////////////
+    //    tokenToEthTransferInput     //
+    ////////////////////////////////////
+    function test_CanSwapTokensForEthAndTransferToRecipient() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 ethReserve = 10 ether;
+        uint256 tokenReserve = 1_000 ether;
+        uint256 tokensSold = 100 ether;
+
+        deal(address(token), user, tokensSold);
+
+        uint256 ethBought = exchange.getTokenToEthInputPrice(tokensSold);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), tokensSold);
+
+        uint256 actualEthBought = exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp + 1, alice);
+
+        vm.stopPrank();
+
+        assertEq(actualEthBought, ethBought);
+        assertEq(address(exchange).balance, ethReserve - ethBought);
+        assertEq(address(user).balance, 0);
+        assertEq(address(alice).balance, ethBought);
+        assertEq(token.balanceOf(address(exchange)), tokenReserve + tokensSold);
+        assertEq(token.balanceOf(user), 0);
+    }
+
+    function test_TokenToEthTransferInputRevertsOnInvalidRecipient() external withLiquidity(10 ether, 1_000 ether) {
+        uint256 tokensSold = 100 ether;
+
+        deal(address(token), user, tokensSold);
+
+        vm.startPrank(user);
+        token.approve(address(exchange), tokensSold);
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
+        exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp + 1, address(exchange));
+
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
+        exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp + 1, address(0));
+        vm.stopPrank();
+    }
 }

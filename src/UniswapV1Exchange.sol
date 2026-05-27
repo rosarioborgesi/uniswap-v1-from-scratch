@@ -283,6 +283,9 @@ contract UniswapV1Exchange is ERC20 {
         external
         returns (uint256)
     {
+        if (_recipient == address(this) || _recipient == address(0)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
         return _tokenToEthInput(_tokensSold, _minEth, _deadline, msg.sender, _recipient);
     }
 
