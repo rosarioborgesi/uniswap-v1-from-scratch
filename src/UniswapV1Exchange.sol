@@ -56,6 +56,8 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__InsufficientTokensWithdrawn();
     error UniswapV1Exchange__TokensSoldIsZero();
     error UniswapV1Exchange__EthBoughtExceedsMinEth();
+    error UniswapV1Exchange__EthBoughtIsZero();
+    error UniswapV1Exchange__TokenSoldExceedsMaxTokens();
 
     ////////////////////////////////
     //      State Variables       //
@@ -264,7 +266,7 @@ contract UniswapV1Exchange is ERC20 {
      * @param _tokensSold Amount of tokens sold by the caller.
      * @param _minEth Minimum amount of ETH the caller is willing to receive.
      * @param _deadline Timestamp after which the transaction is no longer valid.
-     * @return ethBought Amount of ETH bought by the caller.
+     * @return Amount of ETH bought by the caller.
      */
     function tokenToEthSwapInput(uint256 _tokensSold, uint256 _minEth, uint256 _deadline) external returns (uint256) {
         return _tokenToEthInput(_tokensSold, _minEth, _deadline, msg.sender, msg.sender);
@@ -277,7 +279,7 @@ contract UniswapV1Exchange is ERC20 {
      * @param _minEth Minimum amount of ETH the caller is willing the recipient to receive.
      * @param _deadline Timestamp after which the transaction is no longer valid.
      * @param _recipient Address receiving the ETH bought.
-     * @return ethBought Amount of ETH sent to the recipient.
+     * @return Amount of ETH sent to the recipient.
      */
     function tokenToEthTransferInput(uint256 _tokensSold, uint256 _minEth, uint256 _deadline, address _recipient)
         external
@@ -287,6 +289,39 @@ contract UniswapV1Exchange is ERC20 {
             revert UniswapV1Exchange__InvalidRecipient();
         }
         return _tokenToEthInput(_tokensSold, _minEth, _deadline, msg.sender, _recipient);
+    }
+
+    /**
+     * @notice Swaps tokens for an exact amount of ETH.
+     * @dev The caller specifies the exact ETH output desired and the maximum
+     *      amount of tokens willing to sell.
+     * @param _ethBought Exact amount of ETH the caller wants to receive.
+     * @param _maxTokens Maximum amount of tokens the caller is willing to sell.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @return Amount of tokens sold by the caller.
+     */
+    function tokenToEthSwapOutput(uint256 _ethBought, uint256 _maxTokens, uint256 _deadline)
+        external
+        returns (uint256)
+    {
+        return _tokenToEthOutput(_ethBought, _maxTokens, _deadline, msg.sender, msg.sender);
+    }
+
+    /**
+     * @notice Swaps tokens for an exact amount of ETH and sends the ETH to a recipient.
+     * @dev The caller specifies the exact ETH output desired and the maximum
+     *      amount of tokens willing to sell.
+     * @param _ethBought Exact amount of ETH the recipient will receive.
+     * @param _maxTokens Maximum amount of tokens the caller is willing to sell.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _recipient Address receiving the ETH bought.
+     * @return Amount of tokens sold by the caller.
+     */
+    function tokenToEthTransferOutput(uint256 _ethBought, uint256 _maxTokens, uint256 _deadline, address _recipient)
+        external
+        returns (uint256)
+    {
+        return _tokenToEthOutput(_ethBought, _maxTokens, _deadline, msg.sender, _recipient);
     }
 
     ////////////////////////////////
@@ -498,6 +533,58 @@ contract UniswapV1Exchange is ERC20 {
         return ethBought;
     }
 
+    /**
+     * @notice Swaps tokens for an exact amount of ETH.
+     * @dev Shared internal logic used by tokenToEthSwapOutput and tokenToEthTransferOutput.
+     *      Calculates the required token input using the constant product formula,
+     *      sends ETH to the recipient, and transfers tokens from the buyer to the exchange.
+     * @param _ethBought Exact amount of ETH the recipient will receive.
+     * @param _maxTokens Maximum amount of tokens the buyer is willing to sell.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _buyer Address providing the tokens.
+     * @param _recipient Address receiving the ETH.
+     * @return tokensSold Amount of tokens sold by the buyer.
+     */
+    function _tokenToEthOutput(
+        uint256 _ethBought,
+        uint256 _maxTokens,
+        uint256 _deadline,
+        address _buyer,
+        address _recipient
+    ) private returns (uint256) {
+        if (_deadline <= block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+
+        if (_ethBought == 0) {
+            revert UniswapV1Exchange__EthBoughtIsZero();
+        }
+
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+
+        uint256 tokensSold = _getOutputPrice(_ethBought, tokenReserve, ethReserve);
+
+        if (_maxTokens < tokensSold) {
+            revert UniswapV1Exchange__TokenSoldExceedsMaxTokens();
+        }
+
+        (bool ethTransferSuccess,) = _recipient.call{value: _ethBought}("");
+        if (!ethTransferSuccess) {
+            revert UniswapV1Exchange__EthTransferFailed(_recipient, _ethBought);
+        }
+
+        bool tokenTransferSuccess = i_token.transferFrom(_buyer, address(this), tokensSold);
+
+        if (!tokenTransferSuccess) {
+            revert UniswapV1Exchange__TokenTransferFailed(_buyer, address(this), tokensSold);
+        }
+
+        emit EthPurchase(_buyer, tokensSold, _ethBought);
+
+        return tokensSold;
+    }
+
     //////////////////////////////////////////////////////
     //     Private & Internal View & Pure Functions     //
     //////////////////////////////////////////////////////
@@ -612,7 +699,7 @@ contract UniswapV1Exchange is ERC20 {
      * @param _tokensSold Amount of Tokens sold.
      * @return Amount of ETH that can be bought with input Tokens.
      */
-    function getTokenToEthInputPrice(uint256 _tokensSold) public view returns (uint256) {
+    function getTokenToEthInputPrice(uint256 _tokensSold) external view returns (uint256) {
         if (_tokensSold == 0) {
             revert UniswapV1Exchange__TokensSoldIsZero();
         }
@@ -620,5 +707,19 @@ contract UniswapV1Exchange is ERC20 {
         uint256 ethReserve = address(this).balance;
 
         return _getInputPrice(_tokensSold, tokenReserve, ethReserve);
+    }
+
+    /**
+     * @notice Returns the amount of tokens required to buy an exact amount of ETH.
+     * @param _ethBought Exact amount of ETH the user wants to receive.
+     * @return tokensSold Amount of tokens required to buy `_ethBought`.
+     */
+    function getTokenToEthOutputPrice(uint256 _ethBought) external view returns (uint256) {
+        if (_ethBought == 0) {
+            revert UniswapV1Exchange__EthBoughtIsZero();
+        }
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+        return _getOutputPrice(_ethBought, tokenReserve, ethReserve);
     }
 }
