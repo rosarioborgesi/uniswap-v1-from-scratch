@@ -58,6 +58,8 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__EthBoughtExceedsMinEth();
     error UniswapV1Exchange__EthBoughtIsZero();
     error UniswapV1Exchange__TokensSoldExceedsMaxTokens();
+    error UniswapV1Exchange__EmptyLpTokenName();
+    error UniswapV1Exchange__EmptyLpTokenSymbol();
 
     ////////////////////////////////
     //      State Variables       //
@@ -80,6 +82,12 @@ contract UniswapV1Exchange is ERC20 {
     {
         if (_tokenAddress == address(0)) {
             revert UniswapV1Exchange__ZeroAddress();
+        }
+        if (bytes(_lpTokenName).length == 0) {
+            revert UniswapV1Exchange__EmptyLpTokenName();
+        }
+        if (bytes(_lpTokensSymbol).length == 0) {
+            revert UniswapV1Exchange__EmptyLpTokenSymbol();
         }
         i_token = IERC20(_tokenAddress);
     }
@@ -321,7 +329,7 @@ contract UniswapV1Exchange is ERC20 {
         external
         returns (uint256)
     {
-        if(_recipient == address(this) || _recipient == address(0)) {
+        if (_recipient == address(this) || _recipient == address(0)) {
             revert UniswapV1Exchange__InvalidRecipient();
         }
         return _tokenToEthOutput(_ethBought, _maxTokens, _deadline, msg.sender, _recipient);
