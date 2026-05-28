@@ -104,32 +104,6 @@ x \cdot \Delta y \cdot 1000
 }
 $$
 
-Implementation:
-
-```solidity
-uint256 numerator = _inputReserve * _outputAmount * 1000;
-
-uint256 denominator = (_outputReserve - _outputAmount) * 997;
-
-return numerator / denominator + 1;
-```
-
----
-
-## Why We Add `+1`
-
-Solidity integer division rounds down.
-
-Without:
-
-```solidity
-+1
-```
-
-the trader could slightly underpay.
-
-Adding `+1` guarantees the pool receives enough input assets to preserve the invariant.
-
 ---
 
 ## Deriving `_getOutputPrice`
@@ -213,7 +187,7 @@ x \cdot \Delta y \cdot 1000
 }
 $$
 
-Mapping to Solidity:
+### Mapping to Solidity
 
 ```solidity
 function _getOutputPrice(
@@ -221,17 +195,14 @@ function _getOutputPrice(
     uint256 _inputReserve,
     uint256 _outputReserve
 ) private pure returns (uint256) {
-    uint256 numerator =
-        _inputReserve * _outputAmount * 1000;
 
-    uint256 denominator =
-        (_outputReserve - _outputAmount) * 997;
-
+    uint256 numerator = _inputReserve * _outputAmount * 1000;
+    uint256 denominator = (_outputReserve - _outputAmount) * 997;
     return numerator / denominator + 1;
 }
 ```
 
-where
+where:
 
 ```text
 Δx = required input amount  -> return value
@@ -239,6 +210,22 @@ x  = input reserve          -> `_inputReserve`
 y  = output reserve         -> `_outputReserve`
 Δy = desired output amount  -> `_outputAmount`
 ```
+
+### Why We Add `+1`
+
+Solidity integer division rounds down.
+
+Without:
+
+```solidity
++1
+```
+
+the trader could slightly underpay.
+
+Adding `+1` guarantees the pool receives enough input assets to preserve the invariant.
+
+---
 
 ---
 

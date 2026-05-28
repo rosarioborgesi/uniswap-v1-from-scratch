@@ -111,17 +111,6 @@ $$
 
 of the input amount contributes to pricing.
 
-Implementation:
-
-```solidity
-uint256 inputAmountWithFee = _inputAmount * 997;
-
-uint256 numerator = inputAmountWithFee * _outputReserve;
-
-uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
-
-return numerator / denominator;
-```
 ---
 
 ## Deriving `_getInputPrice`
@@ -136,25 +125,6 @@ where:
 - `x` = input reserve
 - `y` = output reserve
 - `k` = constant product
-
-In our Solidity function:
-
-```solidity
-function _getInputPrice(
-    uint256 _inputAmount,
-    uint256 _inputReserve,
-    uint256 _outputReserve
-) private pure returns (uint256)
-```
-
-the variables correspond to:
-
-```text
-Δx = input amount   -> `_inputAmount`
-x  = input reserve  -> `_inputReserve`
-y  = output reserve -> `_outputReserve`
-Δy = output amount  -> return value
-```
 
 In the exact input case:
 - the user specifies the exact input amount `Δx`
@@ -230,6 +200,32 @@ y \cdot (\Delta x \cdot 997)
 (x \cdot 1000) + (\Delta x \cdot 997)
 }
 $$
+
+
+### Mapping to Solidity
+
+```solidity
+function _getInputPrice(
+    uint256 _inputAmount,
+    uint256 _inputReserve,
+    uint256 _outputReserve
+) private pure returns (uint256) {
+        
+    uint256 inputAmountWithFee = _inputAmount * 997;
+    uint256 numerator = inputAmountWithFee * _outputReserve;
+    uint256 denominator = (_inputReserve * 1000) + inputAmountWithFee;
+    return numerator / denominator;
+}
+```
+
+where:
+
+```text
+Δx = input amount   -> `_inputAmount`
+x  = input reserve  -> `_inputReserve`
+y  = output reserve -> `_outputReserve`
+Δy = output amount  -> return value
+```
 
 ---
 
