@@ -29,7 +29,7 @@ contract UniswapV1ExchangeUnitTest is Test {
     //    Constructor    //
     ///////////////////////
     function testConstructorSetsTokenCorrectly() public {
-        UniswapV1Exchange exchange = new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "UNI-V1");
+        exchange = new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "UNI-V1");
         assertEq(exchange.tokenAddress(), address(token));
     }
 
@@ -39,7 +39,7 @@ contract UniswapV1ExchangeUnitTest is Test {
     }
 
     function testCreatesExchangeWithValidLpTokenNameAndSymbol() public {
-        UniswapV1Exchange exchange = new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "UNI-V1");
+        exchange = new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "UNI-V1");
 
         assertEq(exchange.name(), "Uniswap V1 LP Token");
         assertEq(exchange.symbol(), "UNI-V1");
