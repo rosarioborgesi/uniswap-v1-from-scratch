@@ -60,6 +60,9 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__TokensSoldExceedsMaxTokens();
     error UniswapV1Exchange__EmptyLpTokenName();
     error UniswapV1Exchange__EmptyLpTokenSymbol();
+    error UniswapV1Exchange__MinTokensBoughtIsZero();
+    error UniswapV1Exchange__MinEthBoughtIsZero();
+    error UniswapV1Exchange__InvalidExchange();
 
     ////////////////////////////////
     //      State Variables       //
@@ -594,6 +597,66 @@ contract UniswapV1Exchange is ERC20 {
         emit EthPurchase(_buyer, tokensSold, _ethBought);
 
         return tokensSold;
+    }
+
+    /**
+     * @notice Swaps an exact amount of this exchange token for another ERC20 token through ETH.
+     * @dev Internal shared logic used by tokenToTokenSwapInput and tokenToTokenTransferInput.
+     *      The swap is routed as Token A -> ETH -> Token B using the destination exchange.
+     * @param _tokensSold Exact amount of this exchange token sold by the buyer.
+     * @param _minTokensBought Minimum amount of output tokens the recipient is willing to receive.
+     * @param _minEthBought Minimum amount of intermediate ETH that must be bought.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _buyer Address providing the input tokens.
+     * @param _recipient Address receiving the output tokens.
+     * @param _exchangeAddr Address of the destination exchange for the output token.
+     * @return tokensBought Amount of output tokens bought for the recipient.
+     */
+    function _tokenToTokenInput(
+        uint256 _tokensSold,
+        uint256 _minTokensBought,
+        uint256 _minEthBought,
+        uint256 _deadline,
+        address _buyer,
+        address _recipient,
+        address _exchangeAddr
+    ) private returns (uint256) {
+        if (_deadline < block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+        if (_tokensSold == 0) {
+            revert UniswapV1Exchange__TokensSoldIsZero();
+        }
+        if (_minTokensBought == 0) {
+            revert UniswapV1Exchange__MinTokensBoughtIsZero();
+        }
+        if (_minEthBought == 0) {
+            revert UniswapV1Exchange__MinEthBoughtIsZero();
+        }
+        if (_exchangeAddr == address(this) || _exchangeAddr == address(0)) {
+            revert UniswapV1Exchange__InvalidExchange();
+        }
+
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+
+        uint256 ethBought = _getInputPrice(_tokensSold, tokenReserve, ethReserve);
+
+        if (_minEthBought > ethBought) {
+            revert UniswapV1Exchange__InsufficientEthBought();
+        }
+
+        bool tokenSoldTransferSuccess = i_token.transferFrom(_buyer, address(this), _tokensSold);
+        if (!tokenSoldTransferSuccess) {
+            revert UniswapV1Exchange__TokenTransferFailed(_buyer, address(this), _tokensSold);
+        }
+
+        uint256 tokensBought = UniswapV1Exchange(_exchangeAddr).ethToTokenTransferInput{value: ethBought}(
+            _minTokensBought, _deadline, _recipient
+        );
+
+        emit EthPurchase(_buyer, _tokensSold, ethBought);
+        return tokensBought;
     }
 
     //////////////////////////////////////////////////////
