@@ -8,7 +8,7 @@ contract EthToTokenSwapUnitTest is UniswapV1ExchangeUnitTest {
     //////////////////////////
     //    getInputPrice     //
     //////////////////////////
-    function test_GetInputPriceReturnsExpectedAmount() external {
+    function test_GetInputPriceReturnsExpectedAmount() external view {
         uint256 inputAmount = 1 ether;
         uint256 inputReserve = 10 ether;
         uint256 outputReserve = 1_000 ether;
@@ -134,7 +134,7 @@ contract EthToTokenSwapUnitTest is UniswapV1ExchangeUnitTest {
     //////////////////////////
     //    getOutputPrice    //
     //////////////////////////
-    function test_GetOutputPriceReturnsExpectedAmount() external {
+    function test_GetOutputPriceReturnsExpectedAmount() external view {
         uint256 outputAmount = 100 ether;
         uint256 inputReserve = 10 ether;
         uint256 outputReserve = 1_000 ether;

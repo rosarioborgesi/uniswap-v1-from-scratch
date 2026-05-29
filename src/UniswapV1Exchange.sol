@@ -66,9 +66,12 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__EmptyLpTokenSymbol();
     error UniswapV1Exchange__MinTokensBoughtIsZero();
     error UniswapV1Exchange__MinEthBoughtIsZero();
-    error UniswapV1Exchange__InvalidExchange();
+    error UniswapV1Exchange__InvalidExchangeAddress();
     error UniswapV1Exchange__InsufficientEthBought();
     error UniswapV1Exchange__FactoryAddressIsZero();
+    error UniswapV1Exchange__MaxEthSoldIsZero();
+    error UniswapV1Exchange__EthBoughtExceedsMaxEthSold();
+    error UniswapV1Exchange__TokensSoldExceedsMaxTokensSold();
 
     ////////////////////////////////
     //      State Variables       //
@@ -404,6 +407,59 @@ contract UniswapV1Exchange is ERC20 {
         );
     }
 
+    /**
+     * @notice Swaps this exchange token for an exact amount of another ERC20 token.
+     * @dev The swap is routed through ETH: Token A -> ETH -> Token B.
+     *      The destination exchange is found through the factory using `_tokenAddr`.
+     * @param _tokensBought Exact amount of output tokens the caller wants to receive.
+     * @param _maxTokensSold Maximum amount of this exchange token the caller is willing to sell.
+     * @param _maxEthSold Maximum amount of intermediate ETH that can be used.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _tokenAddr Address of the ERC20 token being bought.
+     * @return tokensSold Amount of this exchange token sold by the caller.
+     */
+    function tokenToTokenSwapOutput(
+        uint256 _tokensBought,
+        uint256 _maxTokensSold,
+        uint256 _maxEthSold,
+        uint256 _deadline,
+        address _tokenAddr
+    ) external returns (uint256) {
+        address exchangeAddr = i_factory.getExchange(_tokenAddr);
+        return _tokenToTokenOutput(
+            _tokensBought, _maxTokensSold, _maxEthSold, _deadline, msg.sender, msg.sender, payable(exchangeAddr)
+        );
+    }
+
+    /**
+     * @notice Swaps this exchange token for an exact amount of another ERC20 token and sends it to a recipient.
+     * @dev The swap is routed through ETH: Token A -> ETH -> Token B.
+     *      The destination exchange is found through the factory using `_tokenAddr`.
+     * @param _tokensBought Exact amount of output tokens the recipient will receive.
+     * @param _maxTokensSold Maximum amount of this exchange token the caller is willing to sell.
+     * @param _maxEthSold Maximum amount of intermediate ETH that can be used.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _recipient Address receiving the output tokens.
+     * @param _tokenAddr Address of the ERC20 token being bought.
+     * @return tokensSold Amount of this exchange token sold by the caller.
+     */
+    function tokenToTokenTransferOutput(
+        uint256 _tokensBought,
+        uint256 _maxTokensSold,
+        uint256 _maxEthSold,
+        uint256 _deadline,
+        address _recipient,
+        address _tokenAddr
+    ) external returns (uint256) {
+        if (_recipient == address(0) || _recipient == address(this)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        address exchangeAddr = i_factory.getExchange(_tokenAddr);
+        return _tokenToTokenOutput(
+            _tokensBought, _maxTokensSold, _maxEthSold, _deadline, msg.sender, _recipient, payable(exchangeAddr)
+        );
+    }
+
     ////////////////////////////////
     //       Public Functions     //
     ////////////////////////////////
@@ -523,12 +579,8 @@ contract UniswapV1Exchange is ERC20 {
         }
 
         uint256 tokenReserve = i_token.balanceOf(address(this));
-        // msg.value is already included in address(this).balance.
-        // Since _maxEth = msg.value, subtracting _maxEth gives the ETH reserve
-        // before the swap and can never underflow.
         uint256 ethReserve = address(this).balance - _maxEth;
-        // _getOutputPrice requires _tokensBought < tokenReserve,
-        // so the exchange cannot sell more tokens than it owns.
+
         uint256 ethSold = _getOutputPrice(_tokensBought, ethReserve, tokenReserve);
 
         // Slippage protection
@@ -694,7 +746,7 @@ contract UniswapV1Exchange is ERC20 {
             revert UniswapV1Exchange__MinEthBoughtIsZero();
         }
         if (_exchangeAddr == address(this) || _exchangeAddr == address(0)) {
-            revert UniswapV1Exchange__InvalidExchange();
+            revert UniswapV1Exchange__InvalidExchangeAddress();
         }
 
         uint256 tokenReserve = i_token.balanceOf(address(this));
@@ -717,6 +769,71 @@ contract UniswapV1Exchange is ERC20 {
 
         emit EthPurchase(_buyer, _tokensSold, ethBought);
         return tokensBought;
+    }
+
+    /**
+     * @notice Swaps this exchange token for an exact amount of another ERC20 token through ETH.
+     * @dev Internal shared logic used by tokenToTokenSwapOutput and tokenToTokenTransferOutput.
+     *      The route is Token A -> ETH -> Token B.
+     * @param _tokensBought Exact amount of output tokens the recipient will receive.
+     * @param _maxTokensSold Maximum amount of this exchange token the buyer is willing to sell.
+     * @param _maxEthSold Maximum amount of intermediate ETH that can be used.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _buyer Address providing the input tokens.
+     * @param _recipient Address receiving the output tokens.
+     * @param _exchangeAddr Address of the destination exchange for the output token.
+     * @return tokensSold Amount of input tokens sold by the buyer.
+     */
+    function _tokenToTokenOutput(
+        uint256 _tokensBought,
+        uint256 _maxTokensSold,
+        uint256 _maxEthSold,
+        uint256 _deadline,
+        address _buyer,
+        address _recipient,
+        address payable _exchangeAddr
+    ) private returns (uint256) {
+        if (_deadline < block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+        if (_tokensBought == 0) {
+            revert UniswapV1Exchange__TokensBoughtIsZero();
+        }
+        if (_maxEthSold == 0) {
+            revert UniswapV1Exchange__MaxEthSoldIsZero();
+        }
+        if (_exchangeAddr == address(this) || _exchangeAddr == address(0)) {
+            revert UniswapV1Exchange__InvalidExchangeAddress();
+        }
+
+        uint256 ethBought = UniswapV1Exchange(_exchangeAddr).getEthToTokenOutputPrice(_tokensBought);
+
+        if (ethBought > _maxEthSold) {
+            revert UniswapV1Exchange__EthBoughtExceedsMaxEthSold();
+        }
+
+        uint256 tokenReserve = i_token.balanceOf(address(this));
+        uint256 ethReserve = address(this).balance;
+
+        uint256 tokensSold = _getOutputPrice(ethBought, tokenReserve, ethReserve);
+
+        if (_maxTokensSold < tokensSold) {
+            revert UniswapV1Exchange__TokensSoldExceedsMaxTokensSold();
+        }
+
+        bool tokensSoldTransferSuccess = i_token.transferFrom(_buyer, address(this), tokensSold);
+
+        if (!tokensSoldTransferSuccess) {
+            revert UniswapV1Exchange__TokenTransferFailed(_buyer, address(this), tokensSold);
+        }
+
+        UniswapV1Exchange(_exchangeAddr).ethToTokenTransferOutput{value: ethBought}(
+            _tokensBought, _deadline, _recipient
+        );
+
+        emit EthPurchase(_buyer, tokensSold, ethBought);
+
+        return tokensSold;
     }
 
     //////////////////////////////////////////////////////
