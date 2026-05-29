@@ -71,7 +71,7 @@ contract UniswapV1Factory {
             revert UniswapV1Factory__ExchangeAlreadyExists();
         }
 
-        UniswapV1Exchange exchange = new UniswapV1Exchange(_token, _lpTokenName, _lpTokenSymbol);
+        UniswapV1Exchange exchange = new UniswapV1Exchange(_token, address(this), _lpTokenName, _lpTokenSymbol);
         address exchangeAddress = address(exchange);
 
         s_tokenToExchange[_token] = exchangeAddress;
@@ -91,35 +91,35 @@ contract UniswapV1Factory {
     /**
      * @notice Returns the exchange address associated with a token.
      * @param _token Address of the ERC20 token.
-     * @return exchange Address of the exchange supporting the token.
+     * @return Address of the exchange supporting the token.
      */
-    function getExchange(address _token) external view returns (address exchange) {
+    function getExchange(address _token) external view returns (address) {
         return s_tokenToExchange[_token];
     }
 
     /**
      * @notice Returns the token associated with an exchange.
      * @param _exchange Address of the exchange.
-     * @return token Address of the ERC20 token supported by the exchange.
+     * @return Address of the ERC20 token supported by the exchange.
      */
-    function getToken(address _exchange) external view returns (address token) {
+    function getToken(address _exchange) external view returns (address) {
         return s_exchangeToToken[_exchange];
     }
 
     /**
      * @notice Returns the token associated with a given token id.
      * @param _tokenId Unique token identifier assigned by the factory.
-     * @return token Address of the ERC20 token.
+     * @return Address of the ERC20 token.
      */
-    function getTokenWithId(uint256 _tokenId) external view returns (address token) {
+    function getTokenWithId(uint256 _tokenId) external view returns (address) {
         return s_idToToken[_tokenId];
     }
 
     /**
      * @notice Returns the number of exchanges created by the factory.
-     * @return count Total number of registered tokens/exchanges.
+     * @return Total number of registered tokens/exchanges.
      */
-    function tokenCount() external view returns (uint256 count) {
+    function tokenCount() external view returns (uint256) {
         return s_tokenCount;
     }
 }

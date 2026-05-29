@@ -25,11 +25,15 @@ pragma solidity 0.8.30;
 
 import {ERC20, IERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 
+interface IUniswapV1Factory {
+    function getExchange(address _token) external view returns (address);
+}
+
 contract UniswapV1Exchange is ERC20 {
     ////////////////////////////////
     //            Errors          //
     ////////////////////////////////
-    error UniswapV1Exchange__ZeroAddress();
+    error UniswapV1Exchange__TokenAddressIsZero();
     error UniswapV1Exchange__InputAmountIsZero();
     error UniswapV1Exchange__InsufficientReserves();
     error UniswapV1Exchange__EthSoldIsZero();
@@ -63,11 +67,14 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__MinTokensBoughtIsZero();
     error UniswapV1Exchange__MinEthBoughtIsZero();
     error UniswapV1Exchange__InvalidExchange();
+    error UniswapV1Exchange__InsufficientEthBought();
+    error UniswapV1Exchange__FactoryAddressIsZero();
 
     ////////////////////////////////
     //      State Variables       //
     ////////////////////////////////
     IERC20 private immutable i_token;
+    IUniswapV1Factory private immutable i_factory;
 
     ////////////////////////////////
     //           Events           //
@@ -80,11 +87,11 @@ contract UniswapV1Exchange is ERC20 {
     ////////////////////////////////
     //          Functions         //
     ////////////////////////////////
-    constructor(address _tokenAddress, string memory _lpTokenName, string memory _lpTokensSymbol)
+    constructor(address _tokenAddr, address _factoryAddr, string memory _lpTokenName, string memory _lpTokensSymbol)
         ERC20(_lpTokenName, _lpTokensSymbol)
     {
-        if (_tokenAddress == address(0)) {
-            revert UniswapV1Exchange__ZeroAddress();
+        if (_tokenAddr == address(0)) {
+            revert UniswapV1Exchange__TokenAddressIsZero();
         }
         if (bytes(_lpTokenName).length == 0) {
             revert UniswapV1Exchange__EmptyLpTokenName();
@@ -92,7 +99,13 @@ contract UniswapV1Exchange is ERC20 {
         if (bytes(_lpTokensSymbol).length == 0) {
             revert UniswapV1Exchange__EmptyLpTokenSymbol();
         }
-        i_token = IERC20(_tokenAddress);
+
+        if (_factoryAddr == address(0)) {
+            revert UniswapV1Exchange__FactoryAddressIsZero();
+        }
+
+        i_token = IERC20(_tokenAddr);
+        i_factory = IUniswapV1Factory(_factoryAddr);
     }
 
     /**
@@ -336,6 +349,59 @@ contract UniswapV1Exchange is ERC20 {
             revert UniswapV1Exchange__InvalidRecipient();
         }
         return _tokenToEthOutput(_ethBought, _maxTokens, _deadline, msg.sender, _recipient);
+    }
+
+    /**
+     * @notice Swaps an exact amount of this exchange token for another ERC20 token.
+     * @dev The swap is routed through ETH: Token A -> ETH -> Token B.
+     *      The destination exchange is found through the factory using `_tokenAddr`.
+     * @param _tokensSold Exact amount of this exchange token sold by the caller.
+     * @param _minTokensBought Minimum amount of output tokens the caller is willing to receive.
+     * @param _minEthBought Minimum amount of intermediate ETH that must be bought.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _tokenAddr Address of the ERC20 token being bought.
+     * @return tokensBought Amount of output tokens bought by the caller.
+     */
+    function tokenToTokenSwapInput(
+        uint256 _tokensSold,
+        uint256 _minTokensBought,
+        uint256 _minEthBought,
+        uint256 _deadline,
+        address _tokenAddr
+    ) external returns (uint256) {
+        address exchangeAddr = i_factory.getExchange(_tokenAddr);
+        return _tokenToTokenInput(
+            _tokensSold, _minTokensBought, _minEthBought, _deadline, msg.sender, msg.sender, payable(exchangeAddr)
+        );
+    }
+
+    /**
+     * @notice Swaps an exact amount of this exchange token for another ERC20 token and sends it to a recipient.
+     * @dev The swap is routed through ETH: Token A -> ETH -> Token B.
+     *      The destination exchange is found through the factory using `_tokenAddr`.
+     * @param _tokensSold Exact amount of this exchange token sold by the caller.
+     * @param _minTokensBought Minimum amount of output tokens the recipient is willing to receive.
+     * @param _minEthBought Minimum amount of intermediate ETH that must be bought.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _recipient Address receiving the output tokens.
+     * @param _tokenAddr Address of the ERC20 token being bought.
+     * @return tokensBought Amount of output tokens bought for the recipient.
+     */
+    function tokenToTokenTransferInput(
+        uint256 _tokensSold,
+        uint256 _minTokensBought,
+        uint256 _minEthBought,
+        uint256 _deadline,
+        address _recipient,
+        address _tokenAddr
+    ) external returns (uint256) {
+        if (_recipient == address(0) || _recipient == address(this)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        address exchangeAddr = i_factory.getExchange(_tokenAddr);
+        return _tokenToTokenInput(
+            _tokensSold, _minTokensBought, _minEthBought, _deadline, msg.sender, _recipient, payable(exchangeAddr)
+        );
     }
 
     ////////////////////////////////
@@ -619,7 +685,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _buyer,
         address _recipient,
-        address _exchangeAddr
+        address payable _exchangeAddr
     ) private returns (uint256) {
         if (_deadline < block.timestamp) {
             revert UniswapV1Exchange__DeadlineExpired();

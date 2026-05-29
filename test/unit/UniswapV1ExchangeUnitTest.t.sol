@@ -14,7 +14,7 @@ contract UniswapV1ExchangeUnitTest is Test {
 
     function setUp() external {
         token = new ERC20Mock();
-        exchange = new UniswapV1Exchange(address(token), "Uniswap V1", "UNI-V1");
+        exchange = new UniswapV1Exchange(address(token), address(1), "Uniswap V1", "UNI-V1");
     }
 
     modifier withLiquidity(uint256 ethReserve, uint256 tokenReserve) {
@@ -29,17 +29,17 @@ contract UniswapV1ExchangeUnitTest is Test {
     //    Constructor    //
     ///////////////////////
     function testConstructorSetsTokenCorrectly() public {
-        exchange = new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "UNI-V1");
+        exchange = new UniswapV1Exchange(address(token), address(1), "Uniswap V1 LP Token", "UNI-V1");
         assertEq(exchange.tokenAddress(), address(token));
     }
 
     function test_RevertsIfTokenAddressIsZero() external {
-        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__ZeroAddress.selector);
-        new UniswapV1Exchange(address(0), "Uniswap V1", "UNI-V1");
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokenAddressIsZero.selector);
+        new UniswapV1Exchange(address(0), address(1), "Uniswap V1", "UNI-V1");
     }
 
     function testCreatesExchangeWithValidLpTokenNameAndSymbol() public {
-        exchange = new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "UNI-V1");
+        exchange = new UniswapV1Exchange(address(token), address(1), "Uniswap V1 LP Token", "UNI-V1");
 
         assertEq(exchange.name(), "Uniswap V1 LP Token");
         assertEq(exchange.symbol(), "UNI-V1");
@@ -47,11 +47,11 @@ contract UniswapV1ExchangeUnitTest is Test {
 
     function testRevertsIfLpTokenNameIsEmpty() public {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EmptyLpTokenName.selector);
-        new UniswapV1Exchange(address(token), "", "UNI-V1");
+        new UniswapV1Exchange(address(token), address(1), "", "UNI-V1");
     }
 
     function testRevertsIfLpTokenSymbolIsEmpty() public {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EmptyLpTokenSymbol.selector);
-        new UniswapV1Exchange(address(token), "Uniswap V1 LP Token", "");
+        new UniswapV1Exchange(address(token), address(1), "Uniswap V1 LP Token", "");
     }
 }
