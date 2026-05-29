@@ -127,7 +127,7 @@ contract TokenToTokenSwapUnitTest is Test {
         vm.startPrank(user);
         tokenA.approve(address(exchangeA), tokensSold);
 
-        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientOutputAmount.selector);
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientTokensBought.selector);
 
         exchangeA.tokenToTokenSwapInput(tokensSold, tokensBought + 1, 1, block.timestamp, address(tokenB));
 

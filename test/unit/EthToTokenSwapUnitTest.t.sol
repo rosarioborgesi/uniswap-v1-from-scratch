@@ -76,7 +76,7 @@ contract EthToTokenSwapUnitTest is UniswapV1ExchangeUnitTest {
 
         uint256 tokensBought = exchange.getEthToTokenInputPrice(ethSold);
 
-        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientOutputAmount.selector);
+        vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientTokensBought.selector);
         exchange.ethToTokenSwapInput{value: ethSold}(tokensBought + 1, block.timestamp);
     }
 

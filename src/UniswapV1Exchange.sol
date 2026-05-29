@@ -39,7 +39,7 @@ contract UniswapV1Exchange is ERC20 {
     error UniswapV1Exchange__EthSoldIsZero();
     error UniswapV1Exchange__DeadlineExpired();
     error UniswapV1Exchange__MinTokensIsZero();
-    error UniswapV1Exchange__InsufficientOutputAmount();
+    error UniswapV1Exchange__InsufficientTokensBought();
     error UniswapV1Exchange__TokenTransferFailed(address sender, address recipient, uint256 tokensBought);
     error UniswapV1Exchange__InvalidRecipient();
     error UniswapV1Exchange__OutputAmountIsZero();
@@ -482,7 +482,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 tokensBought = _getInputPrice(_ethSold, ethReserve, tokenReserve);
 
         if (tokensBought < _minTokens) {
-            revert UniswapV1Exchange__InsufficientOutputAmount();
+            revert UniswapV1Exchange__InsufficientTokensBought();
         }
 
         bool success = i_token.transfer(_recipient, tokensBought);
