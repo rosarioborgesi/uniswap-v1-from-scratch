@@ -8,6 +8,21 @@ contract EthToTokenSwapUnitTest is UniswapV1ExchangeUnitTest {
     //////////////////////////
     //    getInputPrice     //
     //////////////////////////
+    function test_GetInputPriceReturnsExpectedAmount() external {
+        uint256 inputAmount = 1 ether;
+        uint256 inputReserve = 10 ether;
+        uint256 outputReserve = 1_000 ether;
+
+        uint256 inputAmountWithFee = inputAmount * 997;
+        uint256 numerator = inputAmountWithFee * outputReserve;
+        uint256 denominator = (inputReserve * 1000) + inputAmountWithFee;
+        uint256 expectedOutputAmount = numerator / denominator;
+
+        uint256 actualOutputAmount = exchange.getInputPrice(inputAmount, inputReserve, outputReserve);
+
+        assertEq(actualOutputAmount, expectedOutputAmount);
+    }
+
     function test_GetInputPriceRevertsWithZeroInputAmount() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InputAmountIsZero.selector);
         exchange.getInputPrice(0, 10 ether, 1_000 ether);
@@ -119,6 +134,20 @@ contract EthToTokenSwapUnitTest is UniswapV1ExchangeUnitTest {
     //////////////////////////
     //    getOutputPrice    //
     //////////////////////////
+    function test_GetOutputPriceReturnsExpectedAmount() external {
+        uint256 outputAmount = 100 ether;
+        uint256 inputReserve = 10 ether;
+        uint256 outputReserve = 1_000 ether;
+
+        uint256 numerator = inputReserve * outputAmount * 1000;
+        uint256 denominator = (outputReserve - outputAmount) * 997;
+        uint256 expectedInputAmount = (numerator / denominator) + 1;
+
+        uint256 actualInputAmount = exchange.getOutputPrice(outputAmount, inputReserve, outputReserve);
+
+        assertEq(actualInputAmount, expectedInputAmount);
+    }
+
     function test_GetOutputPriceRevertsWithZeroOutputAmount() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__OutputAmountIsZero.selector);
         exchange.getOutputPrice(0, 10 ether, 1_000 ether);
