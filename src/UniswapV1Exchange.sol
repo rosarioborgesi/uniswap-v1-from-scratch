@@ -477,16 +477,10 @@ contract UniswapV1Exchange is ERC20 {
         }
 
         uint256 tokenReserve = i_token.balanceOf(address(this));
-        // msg.value is already included in address(this).balance.
-        // Since _ethSold = msg.value, subtracting _ethSold gives the ETH reserve
-        // before the swap and can never underflow.
-        uint256 ethReserveBeforeSwap = address(this).balance - _ethSold;
-        // The AMM formula guarantees that tokensBought is always lower than
-        // the token reserve, so the exchange can never send more tokens
-        // than it owns.
-        uint256 tokensBought = _getInputPrice(_ethSold, ethReserveBeforeSwap, tokenReserve);
+        uint256 ethReserve = address(this).balance - _ethSold;
 
-        // Slippage protection
+        uint256 tokensBought = _getInputPrice(_ethSold, ethReserve, tokenReserve);
+
         if (tokensBought < _minTokens) {
             revert UniswapV1Exchange__InsufficientOutputAmount();
         }
