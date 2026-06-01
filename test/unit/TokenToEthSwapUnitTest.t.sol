@@ -35,7 +35,7 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(user);
         token.approve(address(exchange), tokensSold);
 
-        uint256 actualEthBought = exchange.tokenToEthSwapInput(tokensSold, 1, block.timestamp + 1);
+        uint256 actualEthBought = exchange.tokenToEthSwapInput(tokensSold, 1, block.timestamp);
 
         vm.stopPrank();
 
@@ -48,12 +48,12 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
 
     function test_TokenToEthSwapInputRevertsWithZeroTokensSold() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensSoldIsZero.selector);
-        exchange.tokenToEthSwapInput(0, 1, block.timestamp + 1);
+        exchange.tokenToEthSwapInput(0, 1, block.timestamp);
     }
 
     function test_TokenToEthSwapInputRevertsWithZeroMinEth() external {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MinEthIsZero.selector);
-        exchange.tokenToEthSwapInput(1 ether, 0, block.timestamp + 1);
+        exchange.tokenToEthSwapInput(1 ether, 0, block.timestamp);
     }
 
     function test_TokenToEthSwapInputRevertsIfMinEthTooHigh() external withLiquidity(10 ether, 1_000 ether) {
@@ -66,7 +66,7 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokensSold);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthBoughtExceedsMinEth.selector);
-        exchange.tokenToEthSwapInput(tokensSold, ethBought + 1, block.timestamp + 1);
+        exchange.tokenToEthSwapInput(tokensSold, ethBought + 1, block.timestamp);
 
         vm.stopPrank();
     }
@@ -100,7 +100,7 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(user);
         token.approve(address(exchange), tokensSold);
 
-        uint256 actualEthBought = exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp + 1, alice);
+        uint256 actualEthBought = exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp, alice);
 
         vm.stopPrank();
 
@@ -121,10 +121,10 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokensSold);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
-        exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp + 1, address(exchange));
+        exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp, address(exchange));
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
-        exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp + 1, address(0));
+        exchange.tokenToEthTransferInput(tokensSold, 1, block.timestamp, address(0));
         vm.stopPrank();
     }
 
@@ -161,7 +161,7 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(user);
         token.approve(address(exchange), tokensSold);
 
-        uint256 actualTokensSold = exchange.tokenToEthSwapOutput(ethBought, tokensSold, block.timestamp + 1);
+        uint256 actualTokensSold = exchange.tokenToEthSwapOutput(ethBought, tokensSold, block.timestamp);
 
         vm.stopPrank();
 
@@ -185,19 +185,19 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokensSold);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__TokensSoldExceedsMaxTokens.selector);
-        exchange.tokenToEthSwapOutput(ethBought, tokensSold - 1, block.timestamp + 1);
+        exchange.tokenToEthSwapOutput(ethBought, tokensSold - 1, block.timestamp);
 
         vm.stopPrank();
     }
 
     function test_TokenToEthSwapOutputRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
-        exchange.tokenToEthSwapOutput(1 ether, 1_000 ether, block.timestamp);
+        exchange.tokenToEthSwapOutput(1 ether, 1_000 ether, block.timestamp -1);
     }
 
     function test_TokenToEthSwapOutputRevertsWithZeroEthBought() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EthBoughtIsZero.selector);
-        exchange.tokenToEthSwapOutput(0, 1_000 ether, block.timestamp + 1);
+        exchange.tokenToEthSwapOutput(0, 1_000 ether, block.timestamp);
     }
 
     ////////////////////////////////////
@@ -215,7 +215,7 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(user);
         token.approve(address(exchange), tokensSold);
 
-        uint256 actualTokensSold = exchange.tokenToEthTransferOutput(ethBought, tokensSold, block.timestamp + 1, alice);
+        uint256 actualTokensSold = exchange.tokenToEthTransferOutput(ethBought, tokensSold, block.timestamp, alice);
 
         vm.stopPrank();
 
@@ -237,10 +237,10 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokensSold);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
-        exchange.tokenToEthTransferOutput(ethBought, tokensSold, block.timestamp + 1, address(exchange));
+        exchange.tokenToEthTransferOutput(ethBought, tokensSold, block.timestamp, address(exchange));
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InvalidRecipient.selector);
-        exchange.tokenToEthTransferOutput(ethBought, tokensSold, block.timestamp + 1, address(0));
+        exchange.tokenToEthTransferOutput(ethBought, tokensSold, block.timestamp, address(0));
 
         vm.stopPrank();
     }

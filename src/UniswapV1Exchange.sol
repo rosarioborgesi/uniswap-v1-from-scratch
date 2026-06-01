@@ -88,6 +88,23 @@ contract UniswapV1Exchange is ERC20 {
     event RemoveLiquidity(address indexed provider, uint256 ethAmount, uint256 tokenAmount);
 
     ////////////////////////////////
+    //          Modifiers         //
+    ////////////////////////////////
+    modifier validRecipient(address _recipient) {
+        if (_recipient == address(0) || _recipient == address(this)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        _;
+    }
+
+    modifier deadlineNotExpired(uint256 _deadline) {
+        if (_deadline < block.timestamp) {
+            revert UniswapV1Exchange__DeadlineExpired();
+        }
+        _;
+    }
+
+    ////////////////////////////////
     //          Functions         //
     ////////////////////////////////
     constructor(address _tokenAddr, address _factoryAddr, string memory _lpTokenName, string memory _lpTokensSymbol)
@@ -135,11 +152,10 @@ contract UniswapV1Exchange is ERC20 {
     function addLiquidity(uint256 _minLiquidity, uint256 _maxTokens, uint256 _deadline)
         external
         payable
+        deadlineNotExpired(_deadline)
         returns (uint256)
     {
-        if (_deadline <= block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
+        
         if (_maxTokens == 0) {
             revert UniswapV1Exchange__MaxTokensIsZero();
         }
@@ -210,16 +226,13 @@ contract UniswapV1Exchange is ERC20 {
      */
     function removeLiquidity(uint256 _amount, uint256 _minEth, uint256 _minTokens, uint256 _deadline)
         external
+        deadlineNotExpired(_deadline)
         returns (uint256 ethAmount, uint256 tokenAmount)
     {
         if (_amount == 0) {
             revert UniswapV1Exchange__AmountIsZero();
         }
-
-        if (_deadline <= block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
-
+        
         if (_minEth == 0) {
             revert UniswapV1Exchange__MinEthIsZero();
         }
@@ -310,11 +323,9 @@ contract UniswapV1Exchange is ERC20 {
      */
     function tokenToEthTransferInput(uint256 _tokensSold, uint256 _minEth, uint256 _deadline, address _recipient)
         external
+        validRecipient(_recipient)
         returns (uint256)
     {
-        if (_recipient == address(this) || _recipient == address(0)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
         return _tokenToEthInput(_tokensSold, _minEth, _deadline, msg.sender, _recipient);
     }
 
@@ -346,11 +357,9 @@ contract UniswapV1Exchange is ERC20 {
      */
     function tokenToEthTransferOutput(uint256 _ethBought, uint256 _maxTokens, uint256 _deadline, address _recipient)
         external
+        validRecipient(_recipient)
         returns (uint256)
     {
-        if (_recipient == address(this) || _recipient == address(0)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
         return _tokenToEthOutput(_ethBought, _maxTokens, _deadline, msg.sender, _recipient);
     }
 
@@ -397,10 +406,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _recipient,
         address _tokenAddr
-    ) external returns (uint256) {
-        if (_recipient == address(0) || _recipient == address(this)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
+    ) external validRecipient(_recipient) returns (uint256) {
         address exchangeAddr = i_factory.getExchange(_tokenAddr);
         return _tokenToTokenInput(
             _tokensSold, _minTokensBought, _minEthBought, _deadline, msg.sender, _recipient, payable(exchangeAddr)
@@ -450,10 +456,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _recipient,
         address _tokenAddr
-    ) external returns (uint256) {
-        if (_recipient == address(0) || _recipient == address(this)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
+    ) external validRecipient(_recipient) returns (uint256) {
         address exchangeAddr = i_factory.getExchange(_tokenAddr);
         return _tokenToTokenOutput(
             _tokensBought, _maxTokensSold, _maxEthSold, _deadline, msg.sender, _recipient, payable(exchangeAddr)
@@ -502,10 +505,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _recipient,
         address payable _exchangeAddr
-    ) external returns (uint256) {
-        if (_recipient == address(0) || _recipient == address(this)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
+    ) external validRecipient(_recipient) returns (uint256) {
         return _tokenToTokenInput(
             _tokensSold, _minTokensBought, _minEthBought, _deadline, msg.sender, _recipient, _exchangeAddr
         );
@@ -553,10 +553,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _recipient,
         address payable _exchangeAddr
-    ) external returns (uint256) {
-        if (_recipient == address(0) || _recipient == address(this)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
+    ) external validRecipient(_recipient) returns (uint256) {
         return _tokenToTokenOutput(
             _tokensBought, _maxTokensSold, _maxEthSold, _deadline, msg.sender, _recipient, _exchangeAddr
         );
@@ -577,11 +574,9 @@ contract UniswapV1Exchange is ERC20 {
     function ethToTokenTransferInput(uint256 _minTokens, uint256 _deadline, address _recipient)
         public
         payable
+        validRecipient(_recipient)
         returns (uint256)
     {
-        if (_recipient == address(this) || _recipient == address(0)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
         return _ethToTokenInput(msg.value, _minTokens, _deadline, msg.sender, _recipient);
     }
 
@@ -596,11 +591,9 @@ contract UniswapV1Exchange is ERC20 {
     function ethToTokenTransferOutput(uint256 _tokensBought, uint256 _deadline, address _recipient)
         public
         payable
+        validRecipient(_recipient)
         returns (uint256)
     {
-        if (_recipient == address(this) || _recipient == address(0)) {
-            revert UniswapV1Exchange__InvalidRecipient();
-        }
         return _ethToTokenOutput(_tokensBought, msg.value, _deadline, msg.sender, _recipient);
     }
 
@@ -623,10 +616,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _buyer,
         address _recipient
-    ) private returns (uint256) {
-        if (block.timestamp > _deadline) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
+    ) private deadlineNotExpired(_deadline) returns (uint256) {
         if (_ethSold == 0) {
             revert UniswapV1Exchange__EthSoldIsZero();
         }
@@ -669,10 +659,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _buyer,
         address _recipient
-    ) private returns (uint256) {
-        if (_deadline < block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
+    ) private deadlineNotExpired(_deadline) returns (uint256) {
         if (_tokensBought == 0) {
             revert UniswapV1Exchange__TokensBoughtIsZero();
         }
@@ -727,10 +714,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _buyer,
         address _recipient
-    ) private returns (uint256) {
-        if (_deadline < block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
+    ) private deadlineNotExpired(_deadline) returns (uint256) {
         if (_tokensSold == 0) {
             revert UniswapV1Exchange__TokensSoldIsZero();
         }
@@ -779,11 +763,7 @@ contract UniswapV1Exchange is ERC20 {
         uint256 _deadline,
         address _buyer,
         address _recipient
-    ) private returns (uint256) {
-        if (_deadline <= block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
-
+    ) private deadlineNotExpired(_deadline) returns (uint256) {
         if (_ethBought == 0) {
             revert UniswapV1Exchange__EthBoughtIsZero();
         }

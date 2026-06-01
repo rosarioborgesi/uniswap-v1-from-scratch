@@ -16,7 +16,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(user);
         token.approve(address(exchange), _tokenAmount);
 
-        exchange.addLiquidity{value: _ethAmount}(0, _tokenAmount, block.timestamp + 1);
+        exchange.addLiquidity{value: _ethAmount}(0, _tokenAmount, block.timestamp);
         vm.stopPrank();
         _;
     }
@@ -31,7 +31,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(user);
         token.approve(address(exchange), tokenAmount);
 
-        uint256 liquidityMinted = exchange.addLiquidity{value: ethAmount}(0, tokenAmount, block.timestamp + 1);
+        uint256 liquidityMinted = exchange.addLiquidity{value: ethAmount}(0, tokenAmount, block.timestamp);
         vm.stopPrank();
 
         assertEq(liquidityMinted, ethAmount);
@@ -52,7 +52,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokenAmount);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
-        exchange.addLiquidity{value: ethAmount}(ethAmount, tokenAmount, block.timestamp);
+        exchange.addLiquidity{value: ethAmount}(ethAmount, tokenAmount, block.timestamp - 1);
         vm.stopPrank();
     }
 
@@ -67,7 +67,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokenAmount);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MaxTokensIsZero.selector);
-        exchange.addLiquidity{value: ethAmount}(ethAmount, 0, block.timestamp + 1);
+        exchange.addLiquidity{value: ethAmount}(ethAmount, 0, block.timestamp);
         vm.stopPrank();
     }
 
@@ -82,7 +82,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokenAmount);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientEthAmount.selector);
-        exchange.addLiquidity(ethAmount, tokenAmount, block.timestamp + 1);
+        exchange.addLiquidity(ethAmount, tokenAmount, block.timestamp);
         vm.stopPrank();
     }
 
@@ -100,7 +100,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         vm.startPrank(alice);
         token.approve(address(exchange), tokenAmountLp2);
         uint256 liquidityMinted =
-            exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp + 1);
+            exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp);
         vm.stopPrank();
 
         assertEq(liquidityMinted, ethAmountLp2);
@@ -131,7 +131,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         token.approve(address(exchange), tokenAmountLp2);
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MinLiquidityIsZero.selector);
-        exchange.addLiquidity{value: ethAmountLp2}(0, tokenAmountLp2, block.timestamp + 1);
+        exchange.addLiquidity{value: ethAmountLp2}(0, tokenAmountLp2, block.timestamp);
         vm.stopPrank();
     }
 
@@ -153,7 +153,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         // _maxTokens = tokenAmountLp2 = 2_000
         // tokenAmount = msg.value * tokenReserve / ethReserve + 1 = 1 * 20_000 / 10 + 1 = 2_001
         // _maxTokens < tokenAmount because 2_000 < 2_001
-        exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp + 1);
+        exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2, tokenAmountLp2, block.timestamp);
         vm.stopPrank();
     }
 
@@ -177,7 +177,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
         // So requesting more than 1 ether should revert
 
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientLiquidityMinted.selector);
-        exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2 + 1, tokenAmountLp2, block.timestamp + 1);
+        exchange.addLiquidity{value: ethAmountLp2}(ethAmountLp2 + 1, tokenAmountLp2, block.timestamp);
 
         vm.stopPrank();
     }
@@ -220,7 +220,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
 
         vm.prank(user);
         (uint256 ethAmount, uint256 tokenAmount) =
-            exchange.removeLiquidity(liquidityToBurn, ethAmountExpected, tokenAmountExpected, block.timestamp + 1);
+            exchange.removeLiquidity(liquidityToBurn, ethAmountExpected, tokenAmountExpected, block.timestamp);
 
         assertEq(ethAmount, ethAmountExpected);
         assertEq(tokenAmount, tokenAmountExpected);
@@ -238,42 +238,42 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
     function test_RemoveLiquidityRevertsIfAmountIsZero() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__AmountIsZero.selector);
-        exchange.removeLiquidity(0, 1, 1, block.timestamp + 1);
+        exchange.removeLiquidity(0, 1, 1, block.timestamp);
         vm.stopPrank();
     }
 
     function test_RemoveLiquidityRevertsIfDeadlineExpired() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
-        exchange.removeLiquidity(1 ether, 1, 1, block.timestamp);
+        exchange.removeLiquidity(1 ether, 1, 1, block.timestamp -1);
         vm.stopPrank();
     }
 
     function test_RemoveLiquidityRevertsIfMinEthIsZero() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MinEthIsZero.selector);
-        exchange.removeLiquidity(1 ether, 0, 1, block.timestamp + 1);
+        exchange.removeLiquidity(1 ether, 0, 1, block.timestamp);
         vm.stopPrank();
     }
 
     function test_RemoveLiquidityRevertsIfMinTokensIsZero() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__MinTokensIsZero.selector);
-        exchange.removeLiquidity(1 ether, 1, 0, block.timestamp + 1);
+        exchange.removeLiquidity(1 ether, 1, 0, block.timestamp);
         vm.stopPrank();
     }
 
     function test_RemoveLiquidityRevertsIfInsufficientEthWithdrawn() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientEthWithdrawn.selector);
-        exchange.removeLiquidity(1 ether, 1 ether + 1, 1, block.timestamp + 1);
+        exchange.removeLiquidity(1 ether, 1 ether + 1, 1, block.timestamp);
         vm.stopPrank();
     }
 
     function test_RemoveLiquidityRevertsIfInsufficientTokensWithdrawn() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__InsufficientTokensWithdrawn.selector);
-        exchange.removeLiquidity(1 ether, 1, 2_000 ether + 1, block.timestamp + 1);
+        exchange.removeLiquidity(1 ether, 1, 2_000 ether + 1, block.timestamp);
         vm.stopPrank();
     }
 
@@ -286,7 +286,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
                 IERC20Errors.ERC20InsufficientBalance.selector, user, userLiquidity, userLiquidity + 1
             )
         );
-        exchange.removeLiquidity(userLiquidity + 1, 1, 1, block.timestamp + 1);
+        exchange.removeLiquidity(userLiquidity + 1, 1, 1, block.timestamp);
         vm.stopPrank();
     }
 }
