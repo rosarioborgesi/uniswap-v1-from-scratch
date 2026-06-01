@@ -104,6 +104,13 @@ contract UniswapV1Exchange is ERC20 {
         _;
     }
 
+    modifier validExchange(address _exchangeAddr) {
+        if (_exchangeAddr == address(0) || _exchangeAddr == address(this)) {
+            revert UniswapV1Exchange__InvalidExchangeAddress();
+        }
+        _;
+    }
+
     ////////////////////////////////
     //          Functions         //
     ////////////////////////////////
@@ -155,7 +162,6 @@ contract UniswapV1Exchange is ERC20 {
         deadlineNotExpired(_deadline)
         returns (uint256)
     {
-        
         if (_maxTokens == 0) {
             revert UniswapV1Exchange__MaxTokensIsZero();
         }
@@ -232,7 +238,7 @@ contract UniswapV1Exchange is ERC20 {
         if (_amount == 0) {
             revert UniswapV1Exchange__AmountIsZero();
         }
-        
+
         if (_minEth == 0) {
             revert UniswapV1Exchange__MinEthIsZero();
         }
@@ -814,10 +820,7 @@ contract UniswapV1Exchange is ERC20 {
         address _buyer,
         address _recipient,
         address payable _exchangeAddr
-    ) private returns (uint256) {
-        if (_deadline < block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
+    ) private deadlineNotExpired(_deadline) validExchange(_exchangeAddr) returns (uint256) {
         if (_tokensSold == 0) {
             revert UniswapV1Exchange__TokensSoldIsZero();
         }
@@ -826,9 +829,6 @@ contract UniswapV1Exchange is ERC20 {
         }
         if (_minEthBought == 0) {
             revert UniswapV1Exchange__MinEthBoughtIsZero();
-        }
-        if (_exchangeAddr == address(this) || _exchangeAddr == address(0)) {
-            revert UniswapV1Exchange__InvalidExchangeAddress();
         }
 
         uint256 tokenReserve = i_token.balanceOf(address(this));
@@ -874,18 +874,12 @@ contract UniswapV1Exchange is ERC20 {
         address _buyer,
         address _recipient,
         address payable _exchangeAddr
-    ) private returns (uint256) {
-        if (_deadline < block.timestamp) {
-            revert UniswapV1Exchange__DeadlineExpired();
-        }
+    ) private deadlineNotExpired(_deadline) validExchange(_exchangeAddr) returns (uint256) {
         if (_tokensBought == 0) {
             revert UniswapV1Exchange__TokensBoughtIsZero();
         }
         if (_maxEthSold == 0) {
             revert UniswapV1Exchange__MaxEthSoldIsZero();
-        }
-        if (_exchangeAddr == address(this) || _exchangeAddr == address(0)) {
-            revert UniswapV1Exchange__InvalidExchangeAddress();
         }
 
         uint256 ethBought = UniswapV1Exchange(_exchangeAddr).getEthToTokenOutputPrice(_tokensBought);

@@ -192,7 +192,7 @@ contract TokenToEthSwapUnitTest is UniswapV1ExchangeUnitTest {
 
     function test_TokenToEthSwapOutputRevertsIfDeadlinePassed() external withLiquidity(10 ether, 1_000 ether) {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
-        exchange.tokenToEthSwapOutput(1 ether, 1_000 ether, block.timestamp -1);
+        exchange.tokenToEthSwapOutput(1 ether, 1_000 ether, block.timestamp - 1);
     }
 
     function test_TokenToEthSwapOutputRevertsWithZeroEthBought() external withLiquidity(10 ether, 1_000 ether) {

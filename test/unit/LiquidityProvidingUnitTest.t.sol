@@ -245,7 +245,7 @@ contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
     function test_RemoveLiquidityRevertsIfDeadlineExpired() external addLiquidity(10 ether, 20_000 ether) {
         vm.startPrank(user);
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__DeadlineExpired.selector);
-        exchange.removeLiquidity(1 ether, 1, 1, block.timestamp -1);
+        exchange.removeLiquidity(1 ether, 1, 1, block.timestamp - 1);
         vm.stopPrank();
     }
 
