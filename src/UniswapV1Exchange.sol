@@ -460,6 +460,108 @@ contract UniswapV1Exchange is ERC20 {
         );
     }
 
+    /**
+     * @notice Swaps an exact amount of this exchange token for another exchange token.
+     * @dev The destination exchange is provided directly instead of being resolved through the factory.
+     *      The swap is routed through ETH: Token A -> ETH -> Token B.
+     * @param _tokensSold Exact amount of this exchange token sold by the caller.
+     * @param _minTokensBought Minimum amount of output tokens the caller is willing to receive.
+     * @param _minEthBought Minimum amount of intermediate ETH that must be bought.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _exchangeAddr Address of the destination exchange.
+     * @return tokensBought Amount of output tokens bought by the caller.
+     */
+    function tokenToExchangeSwapInput(
+        uint256 _tokensSold,
+        uint256 _minTokensBought,
+        uint256 _minEthBought,
+        uint256 _deadline,
+        address payable _exchangeAddr
+    ) external returns (uint256) {
+        return _tokenToTokenInput(
+            _tokensSold, _minTokensBought, _minEthBought, _deadline, msg.sender, msg.sender, _exchangeAddr
+        );
+    }
+
+    /**
+     * @notice Swaps an exact amount of this exchange token for another exchange token and sends it to a recipient.
+     * @dev The destination exchange is provided directly instead of being resolved through the factory.
+     *      The swap is routed through ETH: Token A -> ETH -> Token B.
+     * @param _tokensSold Exact amount of this exchange token sold by the caller.
+     * @param _minTokensBought Minimum amount of output tokens the recipient is willing to receive.
+     * @param _minEthBought Minimum amount of intermediate ETH that must be bought.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _recipient Address receiving the output tokens.
+     * @param _exchangeAddr Address of the destination exchange.
+     * @return tokensBought Amount of output tokens bought for the recipient.
+     */
+    function tokenToExchangeTransferInput(
+        uint256 _tokensSold,
+        uint256 _minTokensBought,
+        uint256 _minEthBought,
+        uint256 _deadline,
+        address _recipient,
+        address payable _exchangeAddr
+    ) external returns (uint256) {
+        if (_recipient == address(0) || _recipient == address(this)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        return _tokenToTokenInput(
+            _tokensSold, _minTokensBought, _minEthBought, _deadline, msg.sender, _recipient, _exchangeAddr
+        );
+    }
+
+    /**
+     * @notice Swaps this exchange token for an exact amount of another exchange token.
+     * @dev The destination exchange is provided directly instead of being resolved through the factory.
+     *      The swap is routed through ETH: Token A -> ETH -> Token B.
+     * @param _tokensBought Exact amount of output tokens the caller wants to receive.
+     * @param _maxTokensSold Maximum amount of this exchange token the caller is willing to sell.
+     * @param _maxEthSold Maximum amount of intermediate ETH that can be used.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _exchangeAddr Address of the destination exchange.
+     * @return tokensSold Amount of this exchange token sold by the caller.
+     */
+    function tokenToExchangeSwapOutput(
+        uint256 _tokensBought,
+        uint256 _maxTokensSold,
+        uint256 _maxEthSold,
+        uint256 _deadline,
+        address payable _exchangeAddr
+    ) external returns (uint256) {
+        return _tokenToTokenOutput(
+            _tokensBought, _maxTokensSold, _maxEthSold, _deadline, msg.sender, msg.sender, _exchangeAddr
+        );
+    }
+
+    /**
+     * @notice Swaps this exchange token for an exact amount of another exchange token and sends it to a recipient.
+     * @dev The destination exchange is provided directly instead of being resolved through the factory.
+     *      The swap is routed through ETH: Token A -> ETH -> Token B.
+     * @param _tokensBought Exact amount of output tokens the recipient will receive.
+     * @param _maxTokensSold Maximum amount of this exchange token the caller is willing to sell.
+     * @param _maxEthSold Maximum amount of intermediate ETH that can be used.
+     * @param _deadline Timestamp after which the transaction is no longer valid.
+     * @param _recipient Address receiving the output tokens.
+     * @param _exchangeAddr Address of the destination exchange.
+     * @return tokensSold Amount of this exchange token sold by the caller.
+     */
+    function tokenToExchangeTransferOutput(
+        uint256 _tokensBought,
+        uint256 _maxTokensSold,
+        uint256 _maxEthSold,
+        uint256 _deadline,
+        address _recipient,
+        address payable _exchangeAddr
+    ) external returns (uint256) {
+        if (_recipient == address(0) || _recipient == address(this)) {
+            revert UniswapV1Exchange__InvalidRecipient();
+        }
+        return _tokenToTokenOutput(
+            _tokensBought, _maxTokensSold, _maxEthSold, _deadline, msg.sender, _recipient, _exchangeAddr
+        );
+    }
+
     ////////////////////////////////
     //       Public Functions     //
     ////////////////////////////////
