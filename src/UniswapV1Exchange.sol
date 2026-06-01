@@ -114,8 +114,17 @@ contract UniswapV1Exchange is ERC20 {
     ////////////////////////////////
     //          Functions         //
     ////////////////////////////////
-    constructor(address _tokenAddr, address _factoryAddr, string memory _lpTokenName, string memory _lpTokensSymbol)
-        ERC20(_lpTokenName, _lpTokensSymbol)
+
+    /**
+     * @notice Initializes the exchange for a specific ERC20 token.
+     * @dev The exchange also acts as the ERC20 LP token contract.
+     * @param _tokenAddr Address of the ERC20 token traded by this exchange.
+     * @param _factoryAddr Address of the factory that created this exchange.
+     * @param _lpTokenName Name of the LP token.
+     * @param _lpTokenSymbol Symbol of the LP token.
+     */
+    constructor(address _tokenAddr, address _factoryAddr, string memory _lpTokenName, string memory _lpTokenSymbol)
+        ERC20(_lpTokenName, _lpTokenSymbol)
     {
         if (_tokenAddr == address(0)) {
             revert UniswapV1Exchange__TokenAddressIsZero();
@@ -123,7 +132,7 @@ contract UniswapV1Exchange is ERC20 {
         if (bytes(_lpTokenName).length == 0) {
             revert UniswapV1Exchange__EmptyLpTokenName();
         }
-        if (bytes(_lpTokensSymbol).length == 0) {
+        if (bytes(_lpTokenSymbol).length == 0) {
             revert UniswapV1Exchange__EmptyLpTokenSymbol();
         }
 
@@ -972,10 +981,22 @@ contract UniswapV1Exchange is ERC20 {
     //////////////////////////////////////////////////////
     //      External & Public View & Pure Functions     //
     //////////////////////////////////////////////////////
+    /**
+     * @notice Returns the address of the ERC20 token traded by this exchange.
+     * @return Address of the traded token.
+     */
     function tokenAddress() external view returns (address) {
         return address(i_token);
     }
 
+    /**
+     * @notice Calculates the output amount for an exact input swap.
+     * @dev Applies the Uniswap V1 0.3% fee formula.
+     * @param _inputAmount Amount of input asset sold.
+     * @param _inputReserve Reserve of the input asset.
+     * @param _outputReserve Reserve of the output asset.
+     * @return Amount of output asset bought.
+     */
     function getInputPrice(uint256 _inputAmount, uint256 _inputReserve, uint256 _outputReserve)
         external
         pure
@@ -999,6 +1020,14 @@ contract UniswapV1Exchange is ERC20 {
         return _getInputPrice(_ethSold, ethReserve, tokenReserve);
     }
 
+    /**
+     * @notice Calculates the required input amount for an exact output swap.
+     * @dev Applies the Uniswap V1 0.3% fee formula and rounds up by 1.
+     * @param _outputAmount Exact amount of output asset bought.
+     * @param _inputReserve Reserve of the input asset.
+     * @param _outputReserve Reserve of the output asset.
+     * @return Amount of input asset required.
+     */
     function getOutputPrice(uint256 _outputAmount, uint256 _inputReserve, uint256 _outputReserve)
         external
         pure
@@ -1048,5 +1077,13 @@ contract UniswapV1Exchange is ERC20 {
         uint256 tokenReserve = i_token.balanceOf(address(this));
         uint256 ethReserve = address(this).balance;
         return _getOutputPrice(_ethBought, tokenReserve, ethReserve);
+    }
+
+    /**
+     * @notice Returns the address of the factory that created this exchange.
+     * @return Address of the factory contract.
+     */
+    function factoryAddress() external view returns (address) {
+        return address(i_factory);
     }
 }
