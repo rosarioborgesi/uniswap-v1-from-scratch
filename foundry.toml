@@ -13,5 +13,9 @@ exclude_lints = [
   "screaming-snake-case-immutable",
   "mixed-case-variable"
 ]
+[invariant]
+runs = 256           # Number of test runs
+depth = 100          # Calls per run
+fail_on_revert = true  # Don't fail on handler reverts
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
