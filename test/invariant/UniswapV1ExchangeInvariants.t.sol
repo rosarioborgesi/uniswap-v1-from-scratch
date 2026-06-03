@@ -72,7 +72,12 @@ contract UniswapV1ExchangeInvariants is StdInvariant, Test {
         assertEq(INITIAL_TOKEN_SUPPLY, token.balanceOf(address(handler)) + token.balanceOf(address(exchange)));
     }
 
-    /* function invariant_TotalSupplyEqualsEthReserve() public view {
-        assertEq(exchange.totalSupply(), handler.ghost_expectedEthReserve());
-    } */
+    // The pool should never hold only one asset.
+    // If ETH reserve is zero, token reserve should also be zero, and vice versa.
+    function invariant_poolCannotHaveOnlyOneReserve() public view {
+        uint256 ethReserve = address(exchange).balance;
+        uint256 tokenReserve = token.balanceOf(address(exchange));
+
+        assertEq(ethReserve == 0, tokenReserve == 0);
+    }
 }
