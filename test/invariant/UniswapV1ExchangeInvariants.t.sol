@@ -102,6 +102,19 @@ contract UniswapV1ExchangeInvariants is StdInvariant, Test {
         assertEq(ethReserve == 0, tokenReserve == 0);
     }
 
+    // Total LP supply should equal the sum of LP balances held by actors.
+    function invariant_LpTotalSupplyEqualsSumOfActorBalances() public view {
+        uint256 actorsLpBalance;
+
+        address[] memory actors = handler.getActors();
+
+        for (uint256 i = 0; i < actors.length; i++) {
+            actorsLpBalance += exchange.balanceOf(actors[i]);
+        }
+
+        assertEq(exchange.totalSupply(), actorsLpBalance);
+    }
+
     function invariant_callSummary() public view {
         handler.callSummary();
     }
