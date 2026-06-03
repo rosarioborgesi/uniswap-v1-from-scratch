@@ -126,6 +126,10 @@ test/
 ├── fuzz/
 │   └── UniswapV1ExchangeFuzzTest.t.sol
 └── invariant/
+    ├── UniswapV1ExchangeLiquidityHandler.t.sol
+    ├── UniswapV1ExchangeLiquidityInvariants.t.sol
+    ├── UniswapV1ExchangeSwapHandler.t.sol
+    ├── UniswapV1ExchangeSwapInvariants.t.sol
     ├── UniswapV1ExchangeHandler.t.sol
     └── UniswapV1ExchangeInvariants.t.sol
 ```
@@ -166,12 +170,18 @@ Fuzz tests stress the AMM math across many generated inputs:
 
 ### Invariant Tests
 
-Invariant tests use a handler contract with ghost variables to track expected reserves across stateful liquidity actions.
+Invariant tests use handler contracts to drive long stateful sequences against the exchange. The suite is split by behavior so each invariant can focus on a specific protocol guarantee:
 
 Current invariant coverage checks that:
 
-- The exchange ETH balance matches the expected ETH reserve.
-- The exchange token balance matches the expected token reserve.
+- General exchange actions preserve accounting across multiple actors:
+  - The exchange ETH balance matches the expected ETH reserve tracked by ghost variables.
+  - The exchange token balance matches the expected token reserve tracked by ghost variables.
+  - ETH is conserved across the closed system of actors and exchange.
+  - Tokens are conserved across the closed system of actors and exchange.
+  - The pool never ends up with only one side of the pair reserved.
+- Liquidity-only actions preserve the initialized reserve ratio while the pool size changes.
+- Swap-only actions preserve the constant product safety property: `x * y` must never decrease.
 
 ## Documentation
 
