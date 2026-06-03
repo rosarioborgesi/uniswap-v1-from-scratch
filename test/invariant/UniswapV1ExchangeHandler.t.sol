@@ -14,23 +14,58 @@ contract UniswapV1ExchangeHandler is Test {
     uint256 public ghost_ethWithdrawn;
     uint256 public ghost_tokensWithdrawn;
 
-    constructor(UniswapV1Exchange _exchange, ERC20Mock _token) {
+    address[] public actors;
+    address internal currentActor;
+
+    mapping(bytes32 => uint256) public calls;
+
+    modifier countCall(bytes32 key) {
+        calls[key]++;
+        _;
+    }
+
+    modifier useActor(uint256 actorSeed) {
+        currentActor = actors[bound(actorSeed, 0, actors.length - 1)];
+        vm.startPrank(currentActor);
+        _;
+        vm.stopPrank();
+    }
+
+    constructor(
+        UniswapV1Exchange _exchange,
+        ERC20Mock _token,
+        uint256 _initialEthSupply,
+        uint256 _initialTokenSupply,
+        uint256 _actors
+    ) payable {
         exchange = _exchange;
         token = _token;
+
+        for (uint256 i = 0; i < _actors; i++) {
+            address actor = makeAddr(string(abi.encodePacked("actor", i)));
+            actors.push(actor);
+
+            vm.deal(actor, _initialEthSupply / _actors);
+            token.mint(actor, _initialTokenSupply / _actors);
+        }
     }
 
     // Covers both addLiquidity paths:
     // - initial liquidity when totalLiquidity == 0
     // - proportional liquidity when totalLiquidity > 0
-    function addLiquidity(uint256 _ethAmount, uint256 _maxTokens) external {
-        uint256 handlerEthBalance = address(this).balance;
-        uint256 handlerTokenBalance = token.balanceOf(address(this));
+    function addLiquidity(uint256 actorSeed, uint256 _ethAmount, uint256 _maxTokens)
+        external
+        useActor(actorSeed)
+        countCall("addLiquidity")
+    {
+        uint256 actorEthBalance = currentActor.balance;
+        uint256 actorTokenBalance = token.balanceOf(currentActor);
 
-        if (handlerEthBalance == 0 || handlerTokenBalance == 0) {
+        if (actorEthBalance == 0 || actorTokenBalance == 0) {
             return;
         }
 
-        _ethAmount = bound(_ethAmount, 1, handlerEthBalance);
+        _ethAmount = bound(_ethAmount, 1, actorEthBalance);
 
         uint256 totalLiquidity = exchange.totalSupply();
 
@@ -41,7 +76,8 @@ contract UniswapV1ExchangeHandler is Test {
             if (_ethAmount < 1e9) {
                 return;
             }
-            _maxTokens = bound(_maxTokens, 1, handlerTokenBalance);
+
+            _maxTokens = bound(_maxTokens, 1, actorTokenBalance);
             tokensToDeposit = _maxTokens;
             minLiquidity = 0;
         } else {
@@ -50,9 +86,10 @@ contract UniswapV1ExchangeHandler is Test {
 
             tokensToDeposit = (_ethAmount * tokenReserve) / ethReserve + 1;
 
-            if (tokensToDeposit > handlerTokenBalance) {
+            if (tokensToDeposit > actorTokenBalance) {
                 return;
             }
+
             uint256 liquidityMinted = (_ethAmount * totalLiquidity) / ethReserve;
 
             if (liquidityMinted == 0) {
@@ -70,8 +107,12 @@ contract UniswapV1ExchangeHandler is Test {
         ghost_tokensDeposited += tokensToDeposit;
     }
 
-    function removeLiquidity(uint256 _liquidityAmount) external {
-        uint256 lpBalance = exchange.balanceOf(address(this));
+    function removeLiquidity(uint256 actorSeed, uint256 _liquidityAmount)
+        external
+        useActor(actorSeed)
+        countCall("removeLiquidity")
+    {
+        uint256 lpBalance = exchange.balanceOf(currentActor);
         uint256 totalLiquidity = exchange.totalSupply();
 
         if (lpBalance == 0 || totalLiquidity == 0) {
@@ -96,7 +137,11 @@ contract UniswapV1ExchangeHandler is Test {
         ghost_tokensWithdrawn += expectedTokenAmount;
     }
 
-    function ethToTokenSwapInput(uint256 _ethSold) external {
+    function ethToTokenSwapInput(uint256 actorSeed, uint256 _ethSold)
+        external
+        useActor(actorSeed)
+        countCall("ethToTokenSwapInput")
+    {
         uint256 ethReserve = address(exchange).balance;
         uint256 tokenReserve = token.balanceOf(address(exchange));
 
@@ -104,13 +149,13 @@ contract UniswapV1ExchangeHandler is Test {
             return;
         }
 
-        uint256 handlerEthBalance = address(this).balance;
+        uint256 actorEthBalance = currentActor.balance;
 
-        if (handlerEthBalance == 0) {
+        if (actorEthBalance == 0) {
             return;
         }
 
-        _ethSold = bound(_ethSold, 1, handlerEthBalance);
+        _ethSold = bound(_ethSold, 1, actorEthBalance);
 
         uint256 tokensBought = exchange.getEthToTokenInputPrice(_ethSold);
 
@@ -124,26 +169,28 @@ contract UniswapV1ExchangeHandler is Test {
         ghost_tokensWithdrawn += tokensBought;
     }
 
-    function tokenToEthSwapInput(uint256 _tokensSold) external {
+    function tokenToEthSwapInput(uint256 actorSeed, uint256 _tokensSold)
+        external
+        useActor(actorSeed)
+        countCall("tokenToEthSwapInput")
+    {
         uint256 ethReserve = address(exchange).balance;
         uint256 tokenReserve = token.balanceOf(address(exchange));
 
-        // The pool must be initialized before pricing works.
         if (ethReserve == 0 || tokenReserve == 0) {
             return;
         }
 
-        uint256 handlerTokenBalance = token.balanceOf(address(this));
+        uint256 actorTokenBalance = token.balanceOf(currentActor);
 
-        if (handlerTokenBalance == 0) {
+        if (actorTokenBalance == 0) {
             return;
         }
 
-        _tokensSold = bound(_tokensSold, 1, handlerTokenBalance);
+        _tokensSold = bound(_tokensSold, 1, actorTokenBalance);
 
         uint256 ethBought = exchange.getTokenToEthInputPrice(_tokensSold);
 
-        // If the output rounds down to zero, the swap would fail because minEth = 1.
         if (ethBought == 0) {
             return;
         }
@@ -156,7 +203,11 @@ contract UniswapV1ExchangeHandler is Test {
         ghost_ethWithdrawn += ethBought;
     }
 
-    function ethToTokenViaReceive(uint256 _ethSold) public {
+    function ethToTokenViaReceive(uint256 actorSeed, uint256 _ethSold)
+        external
+        useActor(actorSeed)
+        countCall("ethToTokenViaReceive")
+    {
         uint256 ethReserve = address(exchange).balance;
         uint256 tokenReserve = token.balanceOf(address(exchange));
 
@@ -164,13 +215,13 @@ contract UniswapV1ExchangeHandler is Test {
             return;
         }
 
-        uint256 handlerEthBalance = address(this).balance;
+        uint256 actorEthBalance = currentActor.balance;
 
-        if (handlerEthBalance == 0) {
+        if (actorEthBalance == 0) {
             return;
         }
 
-        _ethSold = bound(_ethSold, 1, handlerEthBalance);
+        _ethSold = bound(_ethSold, 1, actorEthBalance);
 
         uint256 tokensBought = exchange.getEthToTokenInputPrice(_ethSold);
 
@@ -186,4 +237,18 @@ contract UniswapV1ExchangeHandler is Test {
     }
 
     receive() external payable {}
+
+    function getActors() external view returns (address[] memory) {
+        return actors;
+    }
+
+    function callSummary() external view {
+        console.log("Call summary:");
+        console.log("-------------------");
+        console.log("addLiquidity", calls["addLiquidity"]);
+        console.log("removeLiquidity", calls["removeLiquidity"]);
+        console.log("ethToTokenSwapInput", calls["ethToTokenSwapInput"]);
+        console.log("tokenToEthSwapInput", calls["tokenToEthSwapInput"]);
+        console.log("ethToTokenViaReceive", calls["ethToTokenViaReceive"]);
+    }
 }
