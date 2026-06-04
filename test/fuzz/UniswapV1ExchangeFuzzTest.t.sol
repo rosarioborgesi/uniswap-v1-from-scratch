@@ -3,7 +3,7 @@ pragma solidity 0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {UniswapV1Exchange} from "src/UniswapV1Exchange.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "openzeppelin-contracts/mocks/token/ERC20Mock.sol";
 
 contract UniswapV1ExchangeFuzzTest is Test {
     UniswapV1Exchange public exchange;
