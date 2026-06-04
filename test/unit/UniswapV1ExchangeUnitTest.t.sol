@@ -3,7 +3,7 @@ pragma solidity 0.8.30;
 
 import {Test, console} from "forge-std/Test.sol";
 import {UniswapV1Exchange} from "src/UniswapV1Exchange.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "openzeppelin-contracts/mocks/token/ERC20Mock.sol";
 
 contract UniswapV1ExchangeUnitTest is Test {
     UniswapV1Exchange public exchange;
@@ -28,8 +28,7 @@ contract UniswapV1ExchangeUnitTest is Test {
     ///////////////////////
     //    Constructor    //
     ///////////////////////
-    function testConstructorSetsTokenCorrectly() public {
-        exchange = new UniswapV1Exchange(address(token), address(1), "Uniswap V1 LP Token", "UNI-V1");
+    function test_ConstructorSetsTokenCorrectly() public {
         assertEq(exchange.tokenAddress(), address(token));
     }
 
@@ -38,19 +37,19 @@ contract UniswapV1ExchangeUnitTest is Test {
         new UniswapV1Exchange(address(0), address(1), "Uniswap V1", "UNI-V1");
     }
 
-    function testCreatesExchangeWithValidLpTokenNameAndSymbol() public {
+    function test_CreatesExchangeWithValidLpTokenNameAndSymbol() public {
         exchange = new UniswapV1Exchange(address(token), address(1), "Uniswap V1 LP Token", "UNI-V1");
 
         assertEq(exchange.name(), "Uniswap V1 LP Token");
         assertEq(exchange.symbol(), "UNI-V1");
     }
 
-    function testRevertsIfLpTokenNameIsEmpty() public {
+    function test_RevertsIfLpTokenNameIsEmpty() public {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EmptyLpTokenName.selector);
         new UniswapV1Exchange(address(token), address(1), "", "UNI-V1");
     }
 
-    function testRevertsIfLpTokenSymbolIsEmpty() public {
+    function test_RevertsIfLpTokenSymbolIsEmpty() public {
         vm.expectRevert(UniswapV1Exchange.UniswapV1Exchange__EmptyLpTokenSymbol.selector);
         new UniswapV1Exchange(address(token), address(1), "Uniswap V1 LP Token", "");
     }
