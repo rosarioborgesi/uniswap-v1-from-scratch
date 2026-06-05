@@ -311,7 +311,7 @@ contract UniswapV1Exchange is ERC20 {
      * @param _deadline Timestamp after which the transaction can no longer be executed.
      * @return Amount of ETH sold.
      */
-    function ethToTokenSwapOutput(uint256 _tokensBought, uint256 _deadline) public payable returns (uint256) {
+    function ethToTokenSwapOutput(uint256 _tokensBought, uint256 _deadline) external payable returns (uint256) {
         return _ethToTokenOutput(_tokensBought, msg.value, _deadline, msg.sender, msg.sender);
     }
 
