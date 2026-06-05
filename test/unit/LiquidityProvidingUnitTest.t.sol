@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {UniswapV1Exchange} from "src/UniswapV1Exchange.sol";
-import {IERC20Errors} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Errors} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {UniswapV1ExchangeUnitTest} from "./UniswapV1ExchangeUnitTest.t.sol";
 
 contract LiquidityProvidingUnitTest is UniswapV1ExchangeUnitTest {
