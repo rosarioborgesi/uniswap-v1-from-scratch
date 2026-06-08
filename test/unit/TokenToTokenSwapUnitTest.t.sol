@@ -4,7 +4,7 @@ pragma solidity 0.8.30;
 import {Test, console} from "forge-std/Test.sol";
 import {UniswapV1Exchange} from "src/UniswapV1Exchange.sol";
 import {UniswapV1Factory} from "src/UniswapV1Factory.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "openzeppelin-contracts/mocks/token/ERC20Mock.sol";
 
 contract TokenToTokenSwapUnitTest is Test {
     UniswapV1Factory factory;
