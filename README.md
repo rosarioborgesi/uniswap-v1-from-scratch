@@ -4,6 +4,8 @@ A from-scratch Solidity implementation of the core Uniswap V1 protocol, built wi
 
 This repository is both an engineering project and a protocol study. The contracts follow the original Uniswap V1 design closely, while modernizing the implementation for Solidity `0.8.x` and OpenZeppelin-based ERC20 primitives.
 
+🎥 Watch the full [YouTube walkthrough video](https://youtu.be/eppikoMpB4A).
+
 ## What This Project Demonstrates
 
 - Rebuilding a production DeFi primitive from first principles.
