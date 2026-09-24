@@ -6,6 +6,10 @@ This repository is both an engineering project and a protocol study. The contrac
 
 🎥 Watch the full [YouTube walkthrough video](https://youtu.be/eppikoMpB4A).
 
+> **Warning**
+> This is a learning project, not a production protocol. It has not been
+> audited and must never be used with real funds.
+
 ## What This Project Demonstrates
 
 - Rebuilding a production DeFi primitive from first principles.
@@ -223,38 +227,6 @@ These notes are written to show the reasoning behind the code, not only the fina
 ├── foundry.toml          # Foundry configuration
 ├── foundry.lock          # Dependency lockfile
 └── README.md
-```
-
-## Getting Started
-
-Install dependencies:
-
-```bash
-forge install
-```
-
-Build the contracts:
-
-```bash
-forge build
-```
-
-Run the full test suite:
-
-```bash
-forge test
-```
-
-Run tests with gas reporting:
-
-```bash
-forge test --gas-report
-```
-
-Run invariant tests only:
-
-```bash
-forge test --match-path test/invariant/*
 ```
 
 ## Reference
